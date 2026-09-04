@@ -28,19 +28,23 @@ import (
 //     two ticks (it reports cumulative jiffies, so a single read is
 //     meaningless — we need a delta).
 //   - memory-used  : /proc/meminfo, MemTotal - MemAvailable.
-//   - GPU          : `nvidia-smi --query-gpu=uuid,utilization.gpu,memory.used`,
+//   - NVIDIA GPU   : `nvidia-smi --query-gpu=uuid,utilization.gpu,memory.used`,
 //     joined back to the static GPUInfo records by UUID (the statsKey that
 //     gpu_linux.go stamps on each adapter). On unified-memory architectures
 //     (UMA, e.g. Grace-Blackwell / DGX Spark) nvidia-smi returns [N/A] for
 //     memory.used; buildResponse maps the independently sampled system-memory
 //     usage onto those statically identified adapters.
+//   - AMD GPU      : the amdgpu driver's per-card sysfs attributes
+//     (gpu_busy_percent, mem_info_vram_used), joined by PCI address — the
+//     statsKey gpu_amd_linux.go stamps. The card list is scanned once at
+//     startup; each tick is a handful of small file reads.
 //
 // Like the Windows collector we keep one background goroutine ticking once a
 // second and publish the combined statsSnapshot via an atomic pointer swap;
-// HTTP handlers read it lock-free. If nvidia-smi is missing (no NVIDIA driver,
-// or an AMD/Intel-only host) GPU stats are simply absent while CPU and memory
-// keep working. If /proc reads fail the corresponding field drops out via the
-// snapshot's zero value and the downstream omitempty tags.
+// HTTP handlers read it lock-free. If nvidia-smi is missing and no amdgpu
+// card exists (an Intel-only host, say) GPU stats are simply absent while CPU
+// and memory keep working. If /proc reads fail the corresponding field drops
+// out via the snapshot's zero value and the downstream omitempty tags.
 const statsTickInterval = time.Second
 
 const (
@@ -75,6 +79,11 @@ type statsCollector struct {
 	// re-spawn (and re-warn about) a missing binary every tick.
 	nvidiaUnavailable atomic.Bool
 
+	// amd is the amdgpu adapter list scanned once at startup. Only the
+	// ticker goroutine reads it after construction. Empty on hosts without
+	// an amdgpu-driven card.
+	amd []amdgpuDevice
+
 	stop     chan struct{}
 	done     chan struct{}
 	stopOnce sync.Once
@@ -89,6 +98,7 @@ func startStatsCollector() *statsCollector {
 	c := &statsCollector{
 		stop: make(chan struct{}),
 		done: make(chan struct{}),
+		amd:  scanAMDGPUs(amdgpuSysfsRoot),
 	}
 	c.latest.Store(initialMemorySnapshot(readMemoryUsed))
 	// Prime the CPU baseline so the first tick produces a real delta rather
@@ -150,27 +160,37 @@ func (c *statsCollector) decodeSnapshot() *statsSnapshot {
 	return snap
 }
 
-// decodeGPU queries nvidia-smi and folds the per-GPU results into out, keyed
-// by UUID. On the first failure it latches nvidiaUnavailable so subsequent
-// ticks short-circuit silently. Unified-memory usage remains available through
-// the independent /proc/meminfo sample assembled by buildResponse.
+// decodeGPU folds every dynamic GPU source into out, keyed by statsKey, and
+// reports whether any adapter produced a utilization reading this tick.
+// Memory-only rows never make the node-wide telemetry valid on their own.
 func (c *statsCollector) decodeGPU(out map[string]gpuStat) bool {
+	samples := c.decodeNvidiaGPU(out)
+	samples += amdgpuDynamic(c.amd, out)
+	return samples > 0
+}
+
+// decodeNvidiaGPU queries nvidia-smi and folds the per-GPU results into out,
+// keyed by UUID, returning the number of utilization samples parsed. On the
+// first failure it latches nvidiaUnavailable so subsequent ticks
+// short-circuit silently. Unified-memory usage remains available through the
+// independent /proc/meminfo sample assembled by buildResponse.
+func (c *statsCollector) decodeNvidiaGPU(out map[string]gpuStat) int {
 	if c.nvidiaUnavailable.Load() {
-		return false
+		return 0
 	}
 	csv, err := nvidiaSmiCSV("uuid,utilization.gpu,memory.used")
 	if err != nil {
 		if c.nvidiaUnavailable.CompareAndSwap(false, true) {
-			slog.Warn("nvidia-smi unavailable; GPU utilization / dedicated VRAM-used will not be reported",
+			slog.Warn("nvidia-smi unavailable; NVIDIA GPU utilization / dedicated VRAM-used will not be reported",
 				"err", err)
 		}
-		return false
+		return 0
 	}
 	parsed, utilizationSamples := parseNvidiaDynamic(csv)
 	for k, v := range parsed {
 		out[k] = v
 	}
-	return utilizationSamples > 0
+	return utilizationSamples
 }
 
 // Snapshot returns the latest published statsSnapshot. Safe for concurrent
