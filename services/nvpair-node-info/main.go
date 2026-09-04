@@ -37,8 +37,9 @@ type GPUInfo struct {
 	// static GPUInfo against statsCollector.Snapshot() results. Its
 	// form is platform-specific: on Windows it's the PDH instance-name
 	// form of the adapter's LUID (e.g. "luid_0x00000000_0x000054f0_phys_0");
-	// on Linux it's the NVIDIA GPU UUID reported by nvidia-smi; on macOS it's
-	// the IORegistry entry ID. Empty on hosts with no dynamic GPU source.
+	// on Linux it's the NVIDIA GPU UUID reported by nvidia-smi or the PCI
+	// address of an amdgpu-driven AMD adapter; on macOS it's the IORegistry
+	// entry ID. Empty on hosts with no dynamic GPU source.
 	// Unexported + json:"-" so it never travels over the wire.
 	statsKey string `json:"-"`
 
@@ -147,8 +148,9 @@ func handleClusterIdentity(msg applog.StdinMessage, identity *clusterIdentity) {
 	slog.Info("cluster identity updated", "clustered", params.ClusterUUID != "")
 }
 
-// detectGPUs lives in gpu_windows.go (DXGI), gpu_linux.go (nvidia-smi with a
-// ghw fallback), gpu_darwin.go (IORegistry), and gpu_other.go (ghw fallback).
+// detectGPUs lives in gpu_windows.go (DXGI), gpu_linux.go (nvidia-smi plus
+// amdgpu sysfs from gpu_amd_linux.go, with a ghw fallback), gpu_darwin.go
+// (IORegistry), and gpu_other.go (ghw fallback).
 // detectCPU lives in cpu_detect.go; memory detection is split so macOS can use
 // gopsutil where ghw has no implementation. The persistent stats collector that
 // supplies dynamic CPU / VRAM / utilization / memory-used numbers lives

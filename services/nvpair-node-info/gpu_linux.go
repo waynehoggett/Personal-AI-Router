@@ -22,38 +22,53 @@ import (
 // collector from blocking indefinitely.
 const nvidiaSmiTimeout = 3 * time.Second
 
-// detectGPUs enumerates GPUs on Linux. It prefers nvidia-smi, which yields the
-// marketing name, total VRAM, and a stable per-GPU UUID we reuse as the join
-// key (statsKey) against the dynamic stats collector's snapshot. When
-// nvidia-smi is absent — no NVIDIA driver, or an AMD/Intel-only host — it falls
-// back to ghw, which reports adapter names but no VRAM and no join key, so
-// those hosts list their GPUs without dynamic VRAM/utilization (matching the
-// pre-existing non-Windows behavior).
+// detectGPUs enumerates GPUs on Linux from the two vendor sources that carry
+// VRAM and a stable join key (statsKey) against the dynamic stats collector:
+// nvidia-smi for NVIDIA adapters (marketing name, total VRAM, per-GPU UUID)
+// and the amdgpu driver's sysfs attributes for AMD adapters (gpu_amd_linux.go).
+// A host can hold both, for example an AMD integrated GPU next to an NVIDIA
+// discrete one, so the two lists are concatenated rather than chosen between.
+// Only when neither source finds an adapter — no NVIDIA driver, no amdgpu
+// card, an Intel-only host — does it fall back to ghw, which reports adapter
+// names but no VRAM and no join key, so those hosts list their GPUs without
+// dynamic VRAM/utilization.
 //
 // On unified-memory architectures (UMA, e.g. Grace-Blackwell / DGX Spark)
 // nvidia-smi reports [N/A] for memory.total because the GPU shares system
 // DRAM; in that case VramBytes is filled from detectMemoryTotal() instead.
 func detectGPUs() []GPUInfo {
-	if out, err := nvidiaSmiCSV("uuid,name,memory.total"); err == nil {
-		if gpus, uma := parseNvidiaStatic(out); len(gpus) > 0 {
-			if uma {
-				if total := detectMemoryTotal(); total > 0 {
-					for i := range gpus {
-						if gpus[i].usesSystemMemoryUsage {
-							gpus[i].VramBytes = total
-						}
-					}
-				}
-			}
-			return gpus
-		}
+	gpus := detectNvidiaGPUs()
+	gpus = append(gpus, detectAMDGPUs()...)
+	if len(gpus) > 0 {
+		return gpus
 	}
 	return detectGPUsGHW()
 }
 
+// detectNvidiaGPUs runs the static nvidia-smi query and returns the parsed
+// adapters, nil when nvidia-smi is absent or reports none.
+func detectNvidiaGPUs() []GPUInfo {
+	out, err := nvidiaSmiCSV("uuid,name,memory.total")
+	if err != nil {
+		return nil
+	}
+	gpus, uma := parseNvidiaStatic(out)
+	if uma {
+		if total := detectMemoryTotal(); total > 0 {
+			for i := range gpus {
+				if gpus[i].usesSystemMemoryUsage {
+					gpus[i].VramBytes = total
+				}
+			}
+		}
+	}
+	return gpus
+}
+
 // detectGPUsGHW is the ghw-based fallback, identical in spirit to the
 // non-Windows/non-Linux path in gpu_other.go: enumerate display adapters and
-// return names only (VramBytes stays 0, statsKey stays empty).
+// return names only (VramBytes stays 0, statsKey stays empty). It runs only
+// when neither vendor source found an adapter, so it never duplicates one.
 func detectGPUsGHW() []GPUInfo {
 	gpu, err := ghw.GPU()
 	if err != nil {

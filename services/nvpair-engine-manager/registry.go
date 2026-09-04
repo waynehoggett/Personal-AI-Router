@@ -82,6 +82,26 @@ type Install struct {
 	// an explicit, rarely-used exception the runner surfaces loudly
 	// rather than silently escalating.
 	Mode string `json:"mode,omitempty"`
+	// Extras are supplementary downloads applied after the primary
+	// fetch+run, each gated on a host condition the runner evaluates at
+	// install time (see installConditions). They exist for engines that
+	// ship hardware-specific runtimes as separate archives unpacked over
+	// the base install — Ollama's Linux ROCm bundle is the reference case,
+	// wanted only on a host with an AMD GPU. An extra whose condition is
+	// false is skipped and logged; one whose condition holds is fetched and
+	// run under the same checksum and HTTPS rules as the primary fetch, and
+	// its failure fails the install.
+	Extras []InstallExtra `json:"extras,omitempty"`
+}
+
+// InstallExtra is one conditional supplementary download in Install.Extras.
+// When names the host condition (an installConditions key); Fetch and Run
+// mirror the primary install's, with {download} resolving to this extra's
+// own artifact.
+type InstallExtra struct {
+	When  string   `json:"when"`
+	Fetch *Fetch   `json:"fetch"`
+	Run   []string `json:"run,omitempty"`
 }
 
 // Uninstall removes a user-mode install by running the engine's own
@@ -590,6 +610,17 @@ func (p *Platform) validate(key string) error {
 		if p.Install.Fetch != nil && strings.TrimSpace(p.Install.Fetch.URL) == "" {
 			return fmt.Errorf("platform %q: install.fetch.url is required when fetch is present", key)
 		}
+		if len(p.Install.Extras) > 0 && len(p.Install.Script) > 0 {
+			return fmt.Errorf("platform %q: install.extras cannot accompany a script install", key)
+		}
+		for i, x := range p.Install.Extras {
+			if !installConditions[x.When] {
+				return fmt.Errorf("platform %q: install.extras[%d].when %q unknown (allowed: %s)", key, i, x.When, strings.Join(installConditionList(), ", "))
+			}
+			if x.Fetch == nil || strings.TrimSpace(x.Fetch.URL) == "" {
+				return fmt.Errorf("platform %q: install.extras[%d].fetch.url is required", key, i)
+			}
+		}
 		switch p.Install.Mode {
 		case "", "user", "admin":
 		default:
@@ -713,6 +744,9 @@ func (m *Manifest) templatedStrings() []string {
 		if p.Install != nil {
 			out = append(out, p.Install.Run...)
 			out = append(out, p.Install.Script...)
+			for _, x := range p.Install.Extras {
+				out = append(out, x.Run...)
+			}
 		}
 		if p.Uninstall != nil {
 			out = append(out, p.Uninstall.Run...)

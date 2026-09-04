@@ -109,7 +109,14 @@ Running      --engine:stop-----> (stop signal, wait for exit; no timeout) --> St
 
 Detect uses the manifest's `detect` paths. Install is one-shot and
 user-mode — an HTTPS download, verified against the manifest's `sha256`
-when one is pinned (an unpinned fetch runs with a loud warning). Start
+when one is pinned (an unpinned fetch runs with a loud warning). An
+`install.extras` list adds supplementary downloads, each gated on a host
+condition named in `when` and evaluated at install time; a wanted extra is
+fetched and run after the primary archive under the same rules, and its
+failure fails the install. The one condition today is `gpu:amd` — an AMD GPU
+bound to the `amdgpu` driver, detected from sysfs on Linux and false
+elsewhere — which the bundled Ollama manifest uses to unpack Ollama's
+separate ROCm runtime over a Linux x64 install only on AMD hosts. Start
 waits for the readiness probe, then runs a periodic health probe; an
 unexpected exit is reported. The bundled Ollama manifest allows up to ten
 minutes for startup because GPU discovery can exceed the previous 30-second

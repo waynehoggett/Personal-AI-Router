@@ -89,6 +89,10 @@ type Executor struct {
 	// detectTimeout bounds the post-install/uninstall detect poll
 	// (installers finish their file work asynchronously). Overridable.
 	detectTimeout time.Duration
+	// installCondition evaluates an Install.Extras `when` condition on this
+	// host. Defaults to evalInstallCondition; tests substitute it to drive
+	// both branches without real hardware.
+	installCondition func(name string) bool
 	// actionTimeout bounds a single engine:action call (HTTP or CLI) so a
 	// hung engine can't park the goroutine or starve the caller forever.
 	actionTimeout time.Duration
@@ -120,6 +124,7 @@ func NewExecutor(reg *Registry, reporter *Reporter, emit func(string, any), base
 		baseDir:            baseDir,
 		desired:            newDesiredStateStore(baseDir),
 		detectTimeout:      30 * time.Second,
+		installCondition:   evalInstallCondition,
 		actionTimeout:      30 * time.Minute,
 		loadedPollInterval: defaultLoadedPollSeconds * time.Second,
 		loadedPoke:         make(chan struct{}, 1),

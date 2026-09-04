@@ -61,7 +61,14 @@
       "detect": ["{install_dir}/bin/ollama"],
       "install": {
         "fetch": { "url": "https://ollama.com/download/ollama-linux-amd64.tar.zst" },
-        "run": ["tar", "--zstd", "-xf", "{download}", "-C", "{install_dir}"]
+        "run": ["tar", "--zstd", "-xf", "{download}", "-C", "{install_dir}"],
+        "extras": [
+          {
+            "when": "gpu:amd",
+            "fetch": { "url": "https://ollama.com/download/ollama-linux-amd64-rocm.tar.zst" },
+            "run": ["tar", "--zstd", "-xf", "{download}", "-C", "{install_dir}"]
+          }
+        ]
       },
       "uninstall": { "run": ["rm", "-rf", "{install_dir}"] },
       "runtime": {
