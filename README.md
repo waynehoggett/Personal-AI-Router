@@ -38,12 +38,15 @@ one, and both report live GPU and memory use throughout.
 | **Architectures** | x64 and arm64 on all three. Windows on ARM is experimental. |
 | **Installers** | Windows `.exe`; Linux `.deb`; macOS `.dmg`. On other Linux distributions, [build from source](docs/building.mdx). |
 | **Mixing nodes** | Windows, Linux, and macOS nodes can all be paired with each other |
+| **GPUs** | NVIDIA and AMD on Windows and Linux; Apple Silicon on macOS. PAIR reports memory and utilization for each, and a node with no GPU at all can still route requests. |
 | **Inference engines** | Ollama and LM Studio |
 
 **PAIR running on a machine does not mean an engine will.** PAIR itself runs on
 any supported Windows, Linux, or macOS machine. Each engine sets its own requirements
 for the operating system, GPU, and drivers, and each model needs enough memory to
-load. Whether a particular engine and model work on a particular machine is
+load. On Linux with an AMD GPU, PAIR's Ollama install also unpacks Ollama's ROCm
+runtime, so the card is used for inference where Ollama supports it; on Windows
+the Ollama download already includes it. Whether a particular engine and model work on a particular machine is
 between that engine and that machine, so check the engine's own documentation
 before assuming a node can serve a model. A node only becomes a candidate for a
 request once it is actually running a compatible engine, and PAIR prefers the

@@ -112,6 +112,41 @@ func (e *Executor) Install(ctx context.Context, engine string) error {
 				return werr
 			}
 		}
+		for i, x := range inst.Extras {
+			if !e.installCondition(x.When) {
+				slog.Info("skipping optional install component: host condition not met",
+					"engine", engine, "when", x.When, "url", x.Fetch.URL)
+				continue
+			}
+			slog.Info("installing optional component", "engine", engine, "when", x.When, "url", x.Fetch.URL)
+			e.emitInstallProgress(engine, "downloading", 0)
+			dp, err := e.download(ctx, engine, x.Fetch)
+			if err != nil {
+				werr := fmt.Errorf("install extra %d (%s): %w", i, x.When, err)
+				e.reportInstallFailed(engine, werr)
+				return werr
+			}
+			defer os.Remove(dp)
+			e.emitInstallProgress(engine, "verified", 50)
+			if len(x.Run) == 0 {
+				continue
+			}
+			e.emitInstallProgress(engine, "installing", 75)
+			xvars := map[string]string{"install_dir": st.installDir, "download": dp}
+			args, err := resolveArgs(x.Run, xvars)
+			if err != nil {
+				e.reportInstallFailed(engine, err)
+				return err
+			}
+			for j := range args {
+				args[j] = expandPath(args[j])
+			}
+			if err := e.runCommand(ctx, args); err != nil {
+				werr := fmt.Errorf("install extra %d (%s) command failed: %w", i, x.When, err)
+				e.reportInstallFailed(engine, werr)
+				return werr
+			}
+		}
 	}
 
 	if !e.waitDetect(engine, true, e.detectTimeout) {
