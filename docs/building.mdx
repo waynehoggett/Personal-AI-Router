@@ -106,17 +106,23 @@ A local build produces an application you run on the machine that built it. Use
 the [releases page](https://github.com/NVIDIA/Personal-AI-Router/releases) for
 installable builds. This guide does not cover producing distributable artifacts.
 
-### Automatic Debian Package Builds
+### Automatic Release Package Builds
 
-Every push to `main` runs the **Build Debian Package**
+Every push to `main` runs the **Build Release Packages**
 [GitHub Actions workflow](../.github/workflows/build-deb.yml). It computes the
 next patch version from the `MAJOR.MINOR` baseline in `desktop/package.json`
-and the existing `v*` tags, builds a `.deb` for both `x64` and `arm64` stamped
-with that version, and publishes both as a GitHub release named for the tag.
-The workflow can also be started by hand from the **Actions** tab.
+and the existing `v*` tags, builds the installers stamped with that version,
+and publishes them as a GitHub release named for the tag:
 
-Download the package for your architecture from the repository's Releases page
-and install it from the directory you downloaded it into:
+- Linux: `NVPAIR-Setup-<version>-amd64.deb` and `NVPAIR-Setup-<version>-arm64.deb`
+- Windows: `NVPAIR-Setup-<version>-x64.exe` and `NVPAIR-Setup-<version>-x64.msi`
+
+The `.msi` wraps the `.exe` installer for deployment tools that need an MSI,
+so both set up the same firewall rules and uninstall the same way. Windows on
+ARM has no CI build; package it locally with `npm run build:win:arm64`.
+
+Download the package for your platform from the repository's Releases page.
+On Linux, install it from the directory you downloaded it into:
 
 ```bash
 sudo apt install ./NVPAIR-Setup-*.deb
@@ -125,7 +131,9 @@ sudo apt install ./NVPAIR-Setup-*.deb
 This is the quickest way to get a build onto hardware you cannot compile on
 directly, such as an AMD GPU machine for testing engine integrations, without
 installing the Node and Go toolchain there. Bump the `MAJOR.MINOR` part of the
-version in `desktop/package.json` by hand to start a new release series.
+version in `desktop/package.json` by hand to start a new release series. A
+manual run of the workflow from the **Actions** tab on any branch builds the
+same packages and uploads them as run artifacts without publishing a release.
 
 ## Build the Services Alone
 

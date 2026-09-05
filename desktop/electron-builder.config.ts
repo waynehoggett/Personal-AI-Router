@@ -10,7 +10,7 @@
 // signing and notarization live outside this repository, so anything built here
 // is unsigned. Released builds come from NVIDIA's own signed pipeline.
 import { readFileSync, readdirSync } from 'node:fs'
-import type { Configuration } from 'electron-builder'
+import type { Configuration, TargetConfiguration } from 'electron-builder'
 import electronPkg from 'electron/package.json'
 import pkg from './package.json'
 // electron-builder loads this config through jiti, which does not resolve the
@@ -238,6 +238,21 @@ if (osSegment === 'windows') {
     process.env.ELECTRON_BUILDER_7Z_FILTER = 'BCJ'
 }
 
+// Windows installer targets. The NSIS .exe is the primary installer. The MSI
+// exists for deployment tooling (Intune, Group Policy, SCCM) that cannot drive
+// an .exe, and it wraps the NSIS installer rather than replacing it: every
+// install-time step PAIR relies on — the firewall rules for LAN discovery and
+// node ports, process teardown, and the data prompt on uninstall — lives in
+// scripts/build/installer.nsh, which electron-builder's plain `msi` target
+// would not run. electron-builder downloads the WiX Toolset itself. x64 only:
+// WiX 3 has no arm64 platform, and Windows on ARM is experimental on the .exe
+// already.
+const msiArchs: PkgArch[] = ['x64']
+const winTargets: TargetConfiguration[] = [{ target: 'nsis', arch: selectedArchs }]
+if (selectedArchs.includes('x64')) {
+    winTargets.push({ target: 'msi-wrapped', arch: msiArchs })
+}
+
 const config: Configuration = {
     electronVersion: electronPkg.version,
     appId: APP_ID,
@@ -340,18 +355,14 @@ const config: Configuration = {
         // The public build is unsigned. NVIDIA Authenticode signing is layered
         // on by internal-build/electron-builder.config.ts.
         icon: './resources/icons/logo.ico',
-        target: [
-            {
-                target: 'nsis',
-                arch: selectedArchs
-            },
-            // electron-builder downloads the WiX Toolset itself; this needs no
-            // extra CI setup beyond running on a Windows host.
-            {
-                target: 'msi',
-                arch: selectedArchs
-            }
-        ]
+        target: winTargets
+    },
+    msiWrapped: {
+        // The wrapped NSIS installer is per-machine, so the MSI must elevate the
+        // same way; /S runs it silently under the MSI's own progress UI.
+        perMachine: true,
+        wrappedInstallerArgs: '/S',
+        impersonate: false
     },
     nsis: {
         guid: 'eafd1530-9af3-5c5d-bb19-0b27768efdac',
