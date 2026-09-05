@@ -57,6 +57,20 @@ export function listManualNodeEntries(): ManualNodeEntry[] {
     }
 }
 
+/**
+ * Persist a manual node so `replayManualNodes` re-adds it on every start. The
+ * entry is keyed by its address (`id` and `name` both default to it), which is
+ * also the key `nvpair-manual-nodes` uses, so {@link removeManualNodeEntry} and
+ * the broker `node/remove` relay match it later. Re-adding an address that is
+ * already persisted is a no-op.
+ */
+export function addManualNodeEntry(address: string): void {
+    const entries = listManualNodeEntries()
+    if (entries.some(entry => entry.address === address)) return
+    entries.push({ id: address, address, name: address })
+    saveManualNodeEntries(entries)
+}
+
 export function removeManualNodeEntry(nodeId: string): void {
     const entries = listManualNodeEntries().filter(
         entry => entry.id !== nodeId && entry.address !== nodeId && entry.name !== nodeId

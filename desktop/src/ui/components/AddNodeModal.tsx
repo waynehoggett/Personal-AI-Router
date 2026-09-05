@@ -4,6 +4,7 @@
 import { useCallback, useState } from 'react'
 import {
     Button,
+    Checkbox,
     Divider,
     Flex,
     FormField,
@@ -14,7 +15,9 @@ import {
     Text,
     TextInput
 } from '@nvidia/foundations-react-core'
+import getErrorString from '@/shared/utils/get-error-string'
 import { DialogHeader } from './DialogHeader'
+import { InlineErrorBanner } from './InlineErrorBanner'
 import { InvitePairingPanel } from './InvitePairingPanel'
 import { useBlurOnOpen } from '@/ui/hooks/useBlurOnOpen'
 import { useInvitePairing } from '@/ui/hooks/useInvitePairing'
@@ -28,23 +31,41 @@ interface AddNodeModalProps {
 export function AddNodeModal({ open, onOpenChange }: AddNodeModalProps) {
     useBlurOnOpen(open)
     const [manualIp, setManualIp] = useState('')
+    // A node on another network (a Tailscale peer, a routed subnet) is never
+    // seen by discovery, so the invite alone would leave it out of the node
+    // directory: no telemetry, no model list, nothing to route to. Registering
+    // it as a manual node first makes the prober fold it in like a discovered
+    // one. Off by default: a LAN node discovery already sees needs no entry.
+    const [remoteNode, setRemoteNode] = useState(false)
+    const [remoteNodeError, setRemoteNodeError] = useState<string | null>(null)
     const pairing = useInvitePairing()
     const nodesThatCanBeAdded = useInvitablePeers()
 
     const handleOpenChange = useCallback(
         (next: boolean) => {
             setManualIp('')
+            setRemoteNode(false)
+            setRemoteNodeError(null)
             pairing.reset()
             onOpenChange(next)
         },
         [onOpenChange, pairing]
     )
 
-    const handleManualInvite = useCallback(() => {
+    const handleManualInvite = useCallback(async () => {
         const ip = manualIp.trim()
         if (!ip) return
-        void pairing.start(ip)
-    }, [manualIp, pairing])
+        setRemoteNodeError(null)
+        if (remoteNode) {
+            try {
+                await window.pairApi.nodes.addManual(ip)
+            } catch (err) {
+                setRemoteNodeError(`Could not register ${ip}: ${getErrorString(err)}`)
+                return
+            }
+        }
+        await pairing.start(ip)
+    }, [manualIp, pairing, remoteNode])
 
     const showPairing = pairing.invite !== null || pairing.error !== null
     const inviteInFlight = pairing.submitting || pairing.invite?.state === 'pending'
@@ -79,7 +100,7 @@ export function AddNodeModal({ open, onOpenChange }: AddNodeModalProps) {
                                             onValueChange={setManualIp}
                                             placeholder="192.168.1.100"
                                             onKeyDown={event => {
-                                                if (event.key === 'Enter') handleManualInvite()
+                                                if (event.key === 'Enter') void handleManualInvite()
                                             }}
                                             disabled={inviteInFlight}
                                         />
@@ -87,12 +108,37 @@ export function AddNodeModal({ open, onOpenChange }: AddNodeModalProps) {
                                     <Button
                                         kind="primary"
                                         color="brand"
-                                        onClick={handleManualInvite}
+                                        onClick={() => void handleManualInvite()}
                                         disabled={!manualIp.trim() || inviteInFlight}
                                     >
                                         Invite
                                     </Button>
                                 </Flex>
+                                <Flex align="start" gap="2">
+                                    <Checkbox
+                                        checked={remoteNode}
+                                        onCheckedChange={checked => setRemoteNode(checked === true)}
+                                        disabled={inviteInFlight}
+                                        aria-label="Node is on another network"
+                                        className="mt-0.5"
+                                    />
+                                    <Stack gap="0">
+                                        <Text kind="body/regular/sm">
+                                            Node is on another network
+                                        </Text>
+                                        <Text kind="body/regular/sm" className="text-subtle-color">
+                                            For a node reached over Tailscale or a routed subnet,
+                                            which discovery cannot see. PAIR keeps the address and
+                                            polls it directly. Use the node&apos;s Tailscale IP.
+                                        </Text>
+                                    </Stack>
+                                </Flex>
+                                {remoteNodeError && (
+                                    <InlineErrorBanner
+                                        message={remoteNodeError}
+                                        onClose={() => setRemoteNodeError(null)}
+                                    />
+                                )}
 
                                 {nodesThatCanBeAdded.length > 0 && (
                                     <Stack gap="4" className="mt-1">
