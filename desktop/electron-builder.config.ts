@@ -250,7 +250,7 @@ if (osSegment === 'windows') {
 const msiArchs: PkgArch[] = ['x64']
 const winTargets: TargetConfiguration[] = [{ target: 'nsis', arch: selectedArchs }]
 if (selectedArchs.includes('x64')) {
-    winTargets.push({ target: 'msi-wrapped', arch: msiArchs })
+    winTargets.push({ target: 'msiWrapped', arch: msiArchs })
 }
 
 const config: Configuration = {

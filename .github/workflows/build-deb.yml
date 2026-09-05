@@ -149,7 +149,7 @@ jobs:
 
       - name: Build Windows installers
         # build:win:x64 compiles the app and then runs electron-builder for the
-        # nsis (.exe) and msi-wrapped (.msi) targets; electron-builder fetches
+        # nsis (.exe) and msiWrapped (.msi) targets; electron-builder fetches
         # NSIS and the WiX toolset itself.
         working-directory: desktop
         run: npm run build:win:x64
