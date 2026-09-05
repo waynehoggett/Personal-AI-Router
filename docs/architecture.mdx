@@ -659,9 +659,13 @@ Tailscale. The address picker treats Tailscale's `100.64.0.0/10` range as an
 overlay network: a host advertises its Tailscale address behind its LAN
 addresses, so a peer that shares only the tailnet can still find it, and a
 dialer ranks a `100.x` candidate below a shared LAN but above a public address.
-The Windows firewall rules the installer adds admit that range next to the
-local subnet, which extends the read-only metadata exposure described under
-trust boundaries to the machines on your tailnet.
+The Windows installer adds a separate, narrower rule set for that range: only
+PAIR's own service binaries, and only for packets addressed to the host's own
+tailnet address, which exist solely on the Tailscale adapter and so can only
+have arrived through Tailscale's authenticated tunnel. Discovery and mDNS get
+no tailnet rule. This extends the read-only metadata exposure described under
+trust boundaries to the devices on your tailnet and nothing more; the
+getting-started guide shows how to narrow it further with Tailscale ACLs.
 
 How far away a node is matters most for exactly these peers, so the scanner
 times its two-second telemetry fetch to each node and keeps a smoothed round
