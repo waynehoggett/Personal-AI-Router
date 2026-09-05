@@ -344,6 +344,10 @@ const config: Configuration = {
             {
                 target: 'nsis',
                 arch: selectedArchs
+            },
+            {
+                target: 'msi',
+                arch: selectedArchs
             }
         ]
     },
