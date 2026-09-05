@@ -22,6 +22,7 @@
 - ⚠️ nvpair-engine-manager → engine:errors
 - ⚠️ nvpair-engine-manager → engine:logs
 - ⚠️ nvpair-engine-manager → engine:restart
+- ⚠️ nvpair-engine-manager → gpu:amd
 - ⚠️ nvpair-engine-manager → internal:set-reserved-port
 - ⚠️ nvpair-job-scheduler → scheduler:get-interval
 - ⚠️ nvpair-job-scheduler → scheduler:get-status
@@ -129,6 +130,7 @@
 | `engine:stop` | request (we call) | ✅ yes |
 | `engine:uninstall` | request (we call) | ✅ yes |
 | `error` | request (we call) | ✅ yes |
+| `gpu:amd` | request (we call) | ⚠️ not called |
 | `internal:set-reserved-port` | request (we call) | ⚠️ not called |
 
 **Dynamic / unresolved notify sites (verify by hand — `npm run service-contracts` prints the line numbers):**

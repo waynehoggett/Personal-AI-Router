@@ -69,6 +69,15 @@ export interface WsInvokeChannelMap {
         request: { nodeId: string }
         response: { nodeId: string; removed: boolean }
     }
+    // Register a node by address with nvpair-manual-nodes (broker `node/add`) and
+    // persist it so it is replayed on every start. This is the path in for a
+    // node discovery cannot see, such as one on another LAN reached over
+    // Tailscale: the manual prober folds it into the same directory as a
+    // discovered node so it gets telemetry and model polling.
+    'nodes:add-manual': {
+        request: { address: string }
+        response: { address: string }
+    }
 
     // Discovery
     'discovery:get-nodes': { request: void; response: AvailableNode[] }

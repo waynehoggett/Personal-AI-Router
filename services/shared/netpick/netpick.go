@@ -49,13 +49,25 @@ const (
 	scoreUnparseable = -1000
 	scoreLoopback    = -500 // a peer cannot reach us here
 	scoreLinkLocal   = -100 // 169.254/16 and fe80::/10: no router forwards these
-	scoreCGNAT       = -50  // 100.64/10: carrier NAT, not a LAN
 	scoreDocker      = 20   // 172.17/16: Docker's default bridge, present on every host
 	scoreIPv6Global  = 20
 	scoreIPv6ULA     = 30
 	scorePublic      = 40 // routable, but rarely how LAN peers reach each other
-	scorePrivate     = 100
+	// 100.64/10 is the shared address space carriers use for CGNAT, but a host
+	// never holds a carrier's CGNAT address itself — that sits on the router —
+	// so one on a host interface is an overlay network's: Tailscale assigns
+	// every node a 100.64/10 address, and it is exactly how a peer on another
+	// LAN reaches this one. Usable, ranked below the LAN a peer shares.
+	scoreOverlay = 80
+	scorePrivate = 100
 )
+
+// overlayIP reports whether ip is in 100.64/10 (RFC 6598), the range Tailscale
+// and similar overlays assign their nodes.
+func overlayIP(ip net.IP) bool {
+	ip4 := ip.To4()
+	return ip4 != nil && ip4[0] == 100 && ip4[1]&0xc0 == 64
+}
 
 // dockerDefaultBridge reports whether ip is in 172.17/16, Docker's default bridge
 // subnet. It is the one private address that is not a host's own: every Docker
@@ -83,8 +95,8 @@ func scoreIP(ip net.IP) int {
 		switch {
 		case ip4.IsLinkLocalUnicast(): // 169.254/16 (APIPA)
 			return scoreLinkLocal
-		case ip4[0] == 100 && ip4[1]&0xc0 == 64: // 100.64/10 (CGNAT)
-			return scoreCGNAT
+		case overlayIP(ip4):
+			return scoreOverlay
 		case dockerDefaultBridge(ip4):
 			return scoreDocker
 		case ip4[0] == 10,

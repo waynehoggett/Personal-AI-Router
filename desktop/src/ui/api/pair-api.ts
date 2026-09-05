@@ -39,6 +39,12 @@ export interface INodesApi {
     }>
     /** Remove a node from the cluster (revokes membership + pinned trust). */
     removeMember(nodeId: string): Promise<{ nodeId: string; removed: boolean }>
+    /**
+     * Register a node by address so it is probed directly rather than waiting
+     * for discovery, for nodes on networks discovery cannot reach (Tailscale,
+     * a routed subnet). Persisted and replayed on every start.
+     */
+    addManual(address: string): Promise<{ address: string }>
     /** A node was added or updated in the discovery/metrics list. */
     onUpsert(callback: (node: NodeItem) => void): () => void
     /** A node was removed from the discovery/metrics list. */
@@ -146,6 +152,7 @@ export function createPairApi(transport: ServiceTransport): IPairApi {
                 }
             },
             removeMember: nodeId => transport.invoke('nodes:remove-member', { nodeId }),
+            addManual: address => transport.invoke('nodes:add-manual', { address }),
             onUpsert: cb => transport.subscribePush('nodes:upsert', cb),
             onRemove: cb => transport.subscribePush('nodes:remove', cb),
             onMembersChanged: cb => transport.subscribePush('nodes:changed', cb)
