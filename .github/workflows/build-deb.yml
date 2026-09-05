@@ -17,10 +17,16 @@ on:
 permissions:
   contents: write
 
-# One release at a time: two pushes landing close together would otherwise
-# both read the same latest tag and race to publish the same version.
+# One release at a time: two pushes to main landing close together would
+# otherwise both read the same latest tag and race to publish the same
+# version. The group is keyed by ref so that only runs for the same branch
+# queue behind each other: a manual validation run on a pull-request branch
+# no longer waits for, or gets displaced by, a release run on main. (GitHub
+# keeps a single queued run per group, so a queued run is cancelled when a
+# newer one for the same ref arrives; on main the newer commit's release
+# supersedes it.)
 concurrency:
-  group: build-deb-release
+  group: build-deb-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
