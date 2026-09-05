@@ -36,7 +36,7 @@ one, and both report live GPU and memory use throughout.
 | --- | --- |
 | **Operating systems** | Windows 11; Linux; macOS |
 | **Architectures** | x64 and arm64 on all three. Windows on ARM is experimental. |
-| **Installers** | Windows `.exe`; Linux `.deb`; macOS `.dmg`. On other Linux distributions, [build from source](docs/building.mdx). |
+| **Installers** | Windows `.exe`/`.msi`; Linux `.deb`; macOS `.dmg`. On other Linux distributions, [build from source](docs/building.mdx). |
 | **Mixing nodes** | Windows, Linux, and macOS nodes can all be paired with each other |
 | **GPUs** | NVIDIA and AMD on Windows and Linux; Apple Silicon on macOS. PAIR reports memory and utilization for each, and a node with no GPU at all can still route requests. |
 | **Inference engines** | Ollama and LM Studio |
