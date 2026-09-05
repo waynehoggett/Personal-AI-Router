@@ -14,11 +14,14 @@ export default function NodeLabel({
     name,
     ipAddress,
     gpuLabel,
+    latencyLabel,
     isLocal
 }: {
     name: string
     ipAddress: string
     gpuLabel: string | undefined
+    /** Network round trip to the node, e.g. "12 ms"; omitted until measured. */
+    latencyLabel?: string
     isLocal?: boolean
 }) {
     const segmentRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -33,8 +36,11 @@ export default function NodeLabel({
         if (gpuLabel) {
             nextSegments.push({ id: 'gpu', text: gpuLabel })
         }
+        if (latencyLabel) {
+            nextSegments.push({ id: 'latency', text: latencyLabel })
+        }
         return nextSegments
-    }, [gpuLabel, ipAddress, name])
+    }, [gpuLabel, ipAddress, latencyLabel, name])
 
     const updateSeparators = useCallback(() => {
         const next = segments.map((_segment, index) => {

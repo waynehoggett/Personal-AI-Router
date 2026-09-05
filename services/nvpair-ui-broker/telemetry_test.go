@@ -38,6 +38,70 @@ func TestTelemetryCacheAgesObservations(t *testing.T) {
 	}
 }
 
+// TestTelemetryCacheCarriesRoundTripUnaged: the round trip is a measurement,
+// not an age, so the cache passes it through while MSSince advances.
+func TestTelemetryCacheCarriesRoundTripUnaged(t *testing.T) {
+	cache := newTelemetryCache()
+	receivedAt := time.Unix(1_700_000_000, 0)
+	input := noderec.NodeTelemetry{
+		HostUUID:       "node-a",
+		TelemetryValid: true,
+		MSSince:        100,
+		RoundTripMs:    23,
+	}
+	if _, ok := cache.Upsert(sourceScanner, input, receivedAt); !ok {
+		t.Fatal("upsert rejected")
+	}
+	snapshot := cache.Snapshot(receivedAt.Add(5 * time.Second))
+	if len(snapshot) != 1 || snapshot[0].MSSince != 5_100 || snapshot[0].RoundTripMs != 23 {
+		t.Fatalf("snapshot = %+v, want msSince aged to 5100 and roundTripMs still 23", snapshot)
+	}
+}
+
+// TestIngestTelemetryRelaysToSubscribedPeer: telemetry the broker ingests is
+// pushed to the peer as discovery:node-telemetry, round trip included, once
+// the peer has subscribed to discovery — and not before.
+func TestIngestTelemetryRelaysToSubscribedPeer(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+	b := &Broker{codec: NewCodec(client), telemetry: newTelemetryCache()}
+	value := noderec.NodeTelemetry{HostUUID: "node-a", TelemetryValid: true, MSSince: 10, RoundTripMs: 23}
+
+	// Unsubscribed: nothing is written, so a read would block. Ingest with the
+	// pipe unread; if the broker wrote, the write itself would block and this
+	// test would hang, which is a failure a timeout catches.
+	done := make(chan struct{})
+	go func() {
+		b.ingestTelemetryAt(sourceScanner, value, time.Now())
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("ingest blocked writing to an unsubscribed peer")
+	}
+
+	b.subMu.Lock()
+	b.subscribed = true
+	b.subMu.Unlock()
+	go b.ingestTelemetryAt(sourceScanner, value, time.Now())
+	msg, err := NewCodec(server).Read()
+	if err != nil {
+		t.Fatalf("read relayed notification: %v", err)
+	}
+	if msg.Method != noderec.NotifyNodeTelemetry {
+		t.Fatalf("relayed method = %q, want %q", msg.Method, noderec.NotifyNodeTelemetry)
+	}
+	var got noderec.NodeTelemetry
+	if err := json.Unmarshal(msg.Params, &got); err != nil {
+		t.Fatalf("decode relayed telemetry: %v", err)
+	}
+	if got.HostUUID != "node-a" || got.RoundTripMs != 23 {
+		t.Fatalf("relayed telemetry = %+v, want node-a with roundTripMs 23", got)
+	}
+}
+
 func TestTelemetryCachePrefersScannerAndFallsBackToManual(t *testing.T) {
 	cache := newTelemetryCache()
 	now := time.Unix(1_700_000_000, 0)

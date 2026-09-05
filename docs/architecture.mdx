@@ -404,7 +404,9 @@ That is useful load feedback rather than a complete capacity model. These are th
 known limitations, stated plainly so you can predict where routing falls short.
 
 **It sees pressure, not capacity.** GPU model, available VRAM, and measured
-latency are not inputs. The same utilization percentage maps to the same pressure
+latency are not inputs, although the telemetry feed now carries each node's
+round trip (`roundTripMs`, see [Manual Nodes](#manual-nodes)) so a future policy
+can weigh a remote node's distance without a new signal. The same utilization percentage maps to the same pressure
 on a small and a large GPU, so a mixed cluster can still favor a slower machine.
 Missing or stale telemetry is neutral rather than treated as idle.
 
@@ -660,6 +662,16 @@ dialer ranks a `100.x` candidate below a shared LAN but above a public address.
 The Windows firewall rules the installer adds admit that range next to the
 local subnet, which extends the read-only metadata exposure described under
 trust boundaries to the machines on your tailnet.
+
+How far away a node is matters most for exactly these peers, so the scanner
+times its two-second telemetry fetch to each node and keeps a smoothed round
+trip per node (the manual-node prober does the same for nodes it owns). The
+figure travels on the telemetry feed as `roundTripMs`, which the broker passes
+to the scheduler untouched and relays to subscribed clients as
+`discovery:node-telemetry`; the desktop shows it on the node's card and the
+terminal interface in an RTT column. It is measured from the machine running
+the scanner, so it is that machine's distance to the node, and the local node
+shows none.
 
 ## Trust Boundaries
 
