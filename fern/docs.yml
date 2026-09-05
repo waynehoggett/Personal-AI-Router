@@ -13,7 +13,7 @@ global-theme: nvidia
 
 navbar-links:
   - type: github
-    value: https://github.com/NVIDIA/Personal-AI-Router
+    value: https://github.com/waynehoggett/Personal-AI-Router
 
 logo:
   right-text: Personal AI Router
