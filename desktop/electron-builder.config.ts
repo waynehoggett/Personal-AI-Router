@@ -344,6 +344,12 @@ const config: Configuration = {
             {
                 target: 'nsis',
                 arch: selectedArchs
+            },
+            // electron-builder downloads the WiX Toolset itself; this needs no
+            // extra CI setup beyond running on a Windows host.
+            {
+                target: 'msi',
+                arch: selectedArchs
             }
         ]
     },
