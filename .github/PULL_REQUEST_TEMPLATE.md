@@ -17,7 +17,7 @@
 
 ## Checklist
 
-- [ ] I have read the [Contributing Guidelines](https://github.com/NVIDIA/Personal-AI-Router/blob/main/CONTRIBUTING.md).
+- [ ] I have read the [Contributing Guidelines](https://github.com/waynehoggett/Personal-AI-Router/blob/main/CONTRIBUTING.md).
 - [ ] Every commit is signed off (`git commit -s`), certifying the [Developer Certificate of Origin](https://developercertificate.org/).
 - [ ] New or existing tests cover the change.
 - [ ] Relevant documentation is updated.

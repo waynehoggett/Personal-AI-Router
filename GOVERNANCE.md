@@ -30,7 +30,7 @@ A release updates the following together:
 - Notices
 - Affected documentation
 - Release notes on the
-  [releases page](https://github.com/NVIDIA/Personal-AI-Router/releases)
+  [releases page](https://github.com/waynehoggett/Personal-AI-Router/releases)
 
 Artifact publication is a separate controlled process. This document does not
 define that process.

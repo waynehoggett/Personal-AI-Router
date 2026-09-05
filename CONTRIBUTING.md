@@ -16,7 +16,7 @@ public issue or pull request.
 
 Complete these checks before you open a change:
 
-- Search existing [issues](https://github.com/NVIDIA/Personal-AI-Router/issues)
+- Search existing [issues](https://github.com/waynehoggett/Personal-AI-Router/issues)
   and pull requests.
 - An issue is not required before you open a pull request. Link one if it
   already covers the change.
@@ -66,7 +66,7 @@ alternatives you considered.
 ## Development Setup
 
 ```bash
-git clone https://github.com/NVIDIA/Personal-AI-Router.git
+git clone https://github.com/waynehoggett/Personal-AI-Router.git
 cd Personal-AI-Router
 ```
 
@@ -256,7 +256,7 @@ reviewer can check the decision rather than infer it from the diff.
 
 Describe any user-facing change in plain terms in the same description. Release
 notes are written from the merged pull requests and published on the
-[releases page](https://github.com/NVIDIA/Personal-AI-Router/releases), so a
+[releases page](https://github.com/waynehoggett/Personal-AI-Router/releases), so a
 clear description is what makes a change show up there correctly.
 
 ## Pull Requests
