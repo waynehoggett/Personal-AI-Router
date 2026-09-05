@@ -106,6 +106,17 @@ A local build produces an application you run on the machine that built it. Use
 the [releases page](https://github.com/NVIDIA/Personal-AI-Router/releases) for
 installable builds. This guide does not cover producing distributable artifacts.
 
+### Build a Debian Package Without a Local Toolchain
+
+The **Build Debian Package** GitHub Actions workflow
+(`.github/workflows/build-deb.yml`) runs the Linux packaging steps above in CI
+and uploads the resulting `.deb` as a workflow artifact, so you can test a
+build (for example, on AMD graphics hardware) without installing the
+[Prerequisites](#prerequisites) locally. From the repository's **Actions** tab,
+select **Build Debian Package**, run it with **Run workflow**, choose `x64` or
+`arm64`, and download the artifact from the completed run's summary page once
+it finishes.
+
 ## Build the Services Alone
 
 The service scripts read `services/versions.json`, stamp each version, build 13
