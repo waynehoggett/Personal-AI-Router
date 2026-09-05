@@ -19,7 +19,7 @@
 ;---------------------------------------
 !define PRODUCT_NAME "NVIDIA Personal AI Router"
 !define PRODUCT_PUBLISHER "NVIDIA"
-!define PRODUCT_URL "https://github.com/NVIDIA/Personal-AI-Router"
+!define PRODUCT_URL "https://github.com/waynehoggett/Personal-AI-Router"
 
 ; Version can be overridden from CLI: makensis /DPRODUCT_VERSION=1.2.3
 !ifndef PRODUCT_VERSION

@@ -121,7 +121,7 @@ Do **not** build individual components by hand without also copying their binari
 
 The staged binaries in `build/bin/` are what you run locally. Installable builds
 come from the
-[releases page](https://github.com/NVIDIA/Personal-AI-Router/releases).
+[releases page](https://github.com/waynehoggett/Personal-AI-Router/releases).
 
 ## Running
 

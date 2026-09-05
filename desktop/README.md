@@ -100,7 +100,7 @@ npm run build              # renderer, main, preload, and CLI bundles
 
 This produces the bundles the application runs from, for use on the machine that
 built them. Installable builds come from the
-[releases page](https://github.com/NVIDIA/Personal-AI-Router/releases).
+[releases page](https://github.com/waynehoggett/Personal-AI-Router/releases).
 
 ## Documentation
 

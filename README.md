@@ -70,7 +70,7 @@ tells you when a newer release exists and installs it on your say-so from
 update feed, so you would upgrade it by pulling and rebuilding.
 
 Download PAIR from the
-[GitHub releases page](https://github.com/NVIDIA/Personal-AI-Router/releases).
+[GitHub releases page](https://github.com/waynehoggett/Personal-AI-Router/releases).
 Release downloads include:
 
 - a Windows installer;
@@ -252,7 +252,7 @@ Component references, for when you already know what you are looking for:
 
 ## Releases
 
-See the [releases page](https://github.com/NVIDIA/Personal-AI-Router/releases)
+See the [releases page](https://github.com/waynehoggett/Personal-AI-Router/releases)
 for what changed in each release.
 
 ## Where PAIR is going

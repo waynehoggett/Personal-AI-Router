@@ -12,9 +12,9 @@ Maintainers do not guarantee a response or a resolution time.
 
 Use the channel that matches your request:
 
-- **Reproducible bugs:** Open a [bug report](https://github.com/NVIDIA/Personal-AI-Router/issues/new?template=bug.yml).
-- **Feature proposals:** Open a [feature request](https://github.com/NVIDIA/Personal-AI-Router/issues/new?template=feature.yml).
-- **Documentation or maintenance work:** Open a [task request](https://github.com/NVIDIA/Personal-AI-Router/issues/new?template=task.yml).
+- **Reproducible bugs:** Open a [bug report](https://github.com/waynehoggett/Personal-AI-Router/issues/new?template=bug.yml).
+- **Feature proposals:** Open a [feature request](https://github.com/waynehoggett/Personal-AI-Router/issues/new?template=feature.yml).
+- **Documentation or maintenance work:** Open a [task request](https://github.com/waynehoggett/Personal-AI-Router/issues/new?template=task.yml).
 - **Security vulnerabilities:** Follow [SECURITY.md](SECURITY.md). Do not open a public issue.
 
 Before opening an issue, refer to
