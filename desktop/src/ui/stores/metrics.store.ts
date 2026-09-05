@@ -17,6 +17,7 @@ export interface NodeMetricsHistory {
     gpuVramUsage: GpuMetricsHistory[]
     cpuUtilization: PerformanceMetric[]
     memoryUsage: PerformanceMetric[]
+    roundTripMs: PerformanceMetric[]
 }
 
 interface MetricsStore {
@@ -78,7 +79,8 @@ export const useMetricsStore = create<MetricsStore>((set, get) => ({
                             data: createPrefill(ts)
                         })),
                         cpuUtilization: createPrefill(ts),
-                        memoryUsage: createPrefill(ts)
+                        memoryUsage: createPrefill(ts),
+                        roundTripMs: createPrefill(ts)
                     }
                     map.set(metrics.id, history)
                 }
@@ -108,6 +110,7 @@ export const useMetricsStore = create<MetricsStore>((set, get) => ({
 
                 pushMetric(history.cpuUtilization, metrics.current.cpuUtilization, ts)
                 pushMetric(history.memoryUsage, metrics.current.memoryUsage, ts)
+                pushMetric(history.roundTripMs, metrics.current.roundTripMs, ts)
 
                 map.set(metrics.id, { ...history })
                 set({ generation: get().generation + 1 })

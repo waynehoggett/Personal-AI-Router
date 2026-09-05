@@ -70,6 +70,69 @@ func TestRefreshNodeTelemetryEmitsFreshnessAndUtilization(t *testing.T) {
 	}
 }
 
+// TestRefreshNodeTelemetryReportsSmoothedRoundTrip pins the round-trip figure:
+// measured around the fetch, so a node that takes 40 ms to answer reports at
+// least that; smoothed across samples, so one slow answer moves the figure by
+// a fraction; and at least 1 once measured, so the wire's zero still means
+// "never measured".
+func TestRefreshNodeTelemetryReportsSmoothedRoundTrip(t *testing.T) {
+	var delay atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(time.Duration(delay.Load()) * time.Millisecond)
+		_ = json.NewEncoder(w).Encode(NodeInfoResponse{TelemetryValid: true, HostUUID: "node-a"})
+	}))
+	defer server.Close()
+	serverURL, _ := url.Parse(server.URL)
+	port, _ := strconv.Atoi(serverURL.Port())
+
+	var output bytes.Buffer
+	d := &daemon{codec: NewCodec(&output), http: server.Client()}
+	sample := func() noderec.NodeTelemetry {
+		t.Helper()
+		output.Reset()
+		if !d.refreshNodeTelemetry(context.Background(), "node-a", serverURL.Hostname(), port) {
+			t.Fatal("telemetry refresh failed")
+		}
+		var message Message
+		if err := json.Unmarshal(bytes.TrimSpace(output.Bytes()), &message); err != nil {
+			t.Fatalf("decode notification: %v", err)
+		}
+		var got noderec.NodeTelemetry
+		if err := json.Unmarshal(message.Params, &got); err != nil {
+			t.Fatalf("decode telemetry: %v", err)
+		}
+		return got
+	}
+
+	// Loopback answers in well under a millisecond: reported as 1, not 0.
+	if got := sample(); got.RoundTripMs < 1 {
+		t.Fatalf("first round trip = %d, want at least 1 once measured", got.RoundTripMs)
+	}
+
+	// A 40 ms answer after fast ones lifts the average by roughly alpha of the
+	// excess, not to 40 straight away.
+	delay.Store(40)
+	got := sample()
+	if got.RoundTripMs < 10 || got.RoundTripMs > 25 {
+		t.Fatalf("smoothed round trip after one slow answer = %d, want about 0.3 * 40", got.RoundTripMs)
+	}
+
+	// Sustained, the average converges on the real figure.
+	for i := 0; i < 12; i++ {
+		got = sample()
+	}
+	if got.RoundTripMs < 38 {
+		t.Fatalf("converged round trip = %d, want about 40", got.RoundTripMs)
+	}
+
+	// Forgetting the node discards its history: the next sample starts fresh.
+	d.forget("node-a")
+	delay.Store(0)
+	if got := sample(); got.RoundTripMs > 5 {
+		t.Fatalf("round trip after forget = %d, want a fresh fast sample", got.RoundTripMs)
+	}
+}
+
 func TestRefreshNodeTelemetryRejectsMismatchedIdentity(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(NodeInfoResponse{

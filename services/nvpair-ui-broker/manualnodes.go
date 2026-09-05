@@ -34,6 +34,7 @@ type manualNodeStatus struct {
 	Memory         *MemoryInfo `json:"memory"`
 	TelemetryValid bool        `json:"telemetryValid"`
 	MSSince        int64       `json:"msSince"`
+	RoundTripMs    int64       `json:"roundTripMs,omitempty"`
 	// HostUUID is the remote's stable per-host identity, learned from its
 	// node-info /v1/node-info. It lets a manual node key by the same permanent
 	// identity as mDNS-discovered nodes (and dedup with itself when the same
@@ -58,6 +59,7 @@ func manualNodeTelemetry(status manualNodeStatus, hostUUID string) noderec.NodeT
 		GPUUtilizationPct: utilization,
 		TelemetryValid:    status.TelemetryValid,
 		MSSince:           status.MSSince,
+		RoundTripMs:       status.RoundTripMs,
 	}
 }
 

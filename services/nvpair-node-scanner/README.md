@@ -74,8 +74,11 @@ Emitted as the directory changes. Each carries the affected `DirectoryNode` (ide
 - `discovery:node-discovered` — a new node entered the directory
 - `discovery:node-updated` — a known node's record or enrichment changed. A re-observation that changes nothing emits no event, so `lastSeen` is a last-*change* stamp rather than a liveness heartbeat
 - `discovery:node-removed` — a node aged out (identity + last-known fields)
-- `discovery:node-telemetry` — compact maximum-GPU utilization, validity, and
-  sample age for broker-internal scheduling
+- `discovery:node-telemetry` — compact maximum-GPU utilization, validity,
+  sample age, and the smoothed round trip of the fetch that produced it
+  (`roundTripMs`, whole milliseconds, at least 1 once measured). The broker
+  feeds it to the scheduler and relays it to subscribed clients, which show
+  the round trip as the node's network distance
 
 A one-shot `ready` notification is sent on startup carrying the daemon version. The broker replays its service registrations on every scanner spawn, so a restarted daemon is repopulated without needing to compare an epoch.
 

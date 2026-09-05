@@ -126,6 +126,11 @@ interface ModularNode {
     gpus: ModularGpu[]
     cpu: ModularCpu | null
     memory: ModularMemory | null
+    // Smoothed round trip of the node scanner's telemetry request to this node,
+    // in whole milliseconds, from the broker's `discovery:node-telemetry` relay.
+    // 0 until measured. Not polled here: distance is measured from where the
+    // scanner asked, and one figure everywhere beats two.
+    roundTripMs: number
     // Node-level list of inference-ready hardware ids from /v1/node-info, mapped
     // straight to SystemTopology.inferenceHardwareIds. undefined = the backend
     // does not report readiness yet (UI shows all GPUs). See the routing
@@ -668,7 +673,8 @@ function toMetrics(node: ModularNode): NodeItemMetrics {
         gpuVramUsage: node.gpus.map((gpu, index) => ({
             id: `${node.id}:gpu:${index}`,
             value: gpu.vramBytes > 0 ? (gpu.vramUsedBytes / gpu.vramBytes) * 100 : 0
-        }))
+        })),
+        roundTripMs: node.roundTripMs
     }
     return { id: node.id, current, historical: [current] }
 }
@@ -760,6 +766,7 @@ function parseProxyNode(params: JsonValue | undefined, engine: ProxyEngine): Mod
         gpus: [],
         cpu: null,
         memory: null,
+        roundTripMs: 0,
         engines,
         lastSeen: Date.now()
     }
@@ -802,6 +809,7 @@ function parseBrokerNode(params: JsonValue | undefined): ModularNode | null {
         gpus: [],
         cpu: null,
         memory: null,
+        roundTripMs: 0,
         // Broker `AvailableNode.models`: the node's model list, enriched by its
         // daemon from the peer's engine-manager `/v1/models` (models-http). This
         // is the remote-node model source now that the proxy `models=` TXT is
@@ -1209,6 +1217,26 @@ class ModularBridgeState {
             targets.push({ id: node.id, hosts, port: node.nodeInfoPort })
         }
         return targets
+    }
+
+    /**
+     * Fold one `discovery:node-telemetry` relay into the node it names and push a
+     * metrics update carrying the new round trip. The payload's GPU figure is
+     * ignored: the desktop polls node-info for hardware itself, and the relay
+     * exists for the one value the poller cannot measure, how far away the node
+     * is from the scanner. A repeat of the same round trip pushes nothing.
+     */
+    private applyNodeTelemetry(params: JsonValue | undefined): void {
+        const obj = objectValue(params)
+        if (!obj) return
+        const nodeId = stringValue(obj.hostUuid)
+        const node = nodeId ? this.nodes.get(nodeId) : undefined
+        if (!node) return
+        const roundTripMs = Math.max(0, Math.round(numberValue(obj.roundTripMs)))
+        if (roundTripMs === node.roundTripMs) return
+        const next = { ...node, roundTripMs }
+        this.nodes.set(node.id, next)
+        emitBridgePush('metrics:update', toMetrics(next))
     }
 
     mergeNodeInfoResponse(nodeId: string, response: JsonValue): void {
@@ -2366,6 +2394,10 @@ class ModularBridgeState {
     }
 
     private handleBrokerNotification(notification: JsonRpcNotification): void {
+        if (notification.method === 'discovery:node-telemetry') {
+            this.applyNodeTelemetry(notification.params)
+            return
+        }
         if (notification.method !== 'discovery:nodes-changed') return
 
         const nodes = brokerNodesValue(notification.params)

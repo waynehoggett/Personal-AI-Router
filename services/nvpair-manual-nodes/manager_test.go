@@ -324,6 +324,26 @@ func TestNodeAddRespondsWithInitialStatusThenDiscoversProbeResult(t *testing.T) 
 	if !status.TelemetryValid || status.MSSince != 137 {
 		t.Fatalf("telemetry = valid:%v age:%d, want true/137", status.TelemetryValid, status.MSSince)
 	}
+	if status.RoundTripMs < 1 {
+		t.Fatalf("round trip = %d, want at least 1 once node-info answered", status.RoundTripMs)
+	}
+}
+
+// TestSmoothRoundTripMs pins the manual prober's averaging: the first sample
+// stands alone, later ones blend at probeRTTAlpha, and sub-millisecond samples
+// keep their precision until the status rounds them.
+func TestSmoothRoundTripMs(t *testing.T) {
+	first := smoothRoundTripMs(0, false, 40*time.Millisecond)
+	if first != 40 {
+		t.Fatalf("first sample = %v, want 40", first)
+	}
+	second := smoothRoundTripMs(first, true, 20*time.Millisecond)
+	if second != 30 {
+		t.Fatalf("blended sample = %v, want 30 (0.5*20 + 0.5*40)", second)
+	}
+	if got := smoothRoundTripMs(0, false, 250*time.Microsecond); got != 0.25 {
+		t.Fatalf("sub-millisecond sample = %v, want 0.25", got)
+	}
 }
 
 func TestNodeAddValidationErrors(t *testing.T) {

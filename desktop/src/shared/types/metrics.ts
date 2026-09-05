@@ -12,6 +12,10 @@ export interface NodeItemMetricsEntry {
     memoryUsage: number // percentage
     gpuUtilization: GpuMetricValue[] // percentage per GPU
     gpuVramUsage: GpuMetricValue[] // percentage per GPU
+    // Smoothed network round trip from this machine's node scanner to the node,
+    // in whole milliseconds. 0 until a sample exists. Relayed by the broker from
+    // the same telemetry the scheduler sees, so it is one figure everywhere.
+    roundTripMs: number
 }
 
 export interface NodeItemMetrics {

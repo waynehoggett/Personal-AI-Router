@@ -211,6 +211,8 @@
 |---|---|---|
 | `cluster:identity-changed` | request (we call) | ✅ yes |
 | `cluster:invite-received` | request (we call) | ✅ yes |
+| `discovery:node-telemetry` | request (we call) | ✅ yes |
+| `discovery:nodes-changed` | request (we call) | ✅ yes |
 | `engine:install-progress` | request (we call) | ✅ yes |
 | `engine:pull-progress` | request (we call) | ✅ yes |
 | `engine:state-changed` | request (we call) | ✅ yes |
