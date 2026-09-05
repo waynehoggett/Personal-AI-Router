@@ -107,10 +107,13 @@ jobs:
         run: npm run build:linux:${{ matrix.arch }}
 
       - name: Upload Debian package artifact
+        # The path has no wildcard before the filename on purpose:
+        # upload-artifact keeps the directory structure after the first
+        # wildcard, and the release job expects the packages at the top level.
         uses: actions/upload-artifact@v4
         with:
           name: nvpair-deb-${{ matrix.arch }}
-          path: desktop/release/*/linux/*.deb
+          path: desktop/release/${{ needs.version.outputs.version }}/linux/*.deb
           if-no-files-found: error
 
   release:
@@ -132,5 +135,5 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: ${{ needs.version.outputs.tag }}
           generate_release_notes: true
-          files: artifacts/*.deb
+          files: artifacts/**/*.deb
           fail_on_unmatched_files: true
