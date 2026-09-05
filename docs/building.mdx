@@ -106,6 +106,21 @@ A local build produces an application you run on the machine that built it. Use
 the [releases page](https://github.com/NVIDIA/Personal-AI-Router/releases) for
 installable builds. This guide does not cover producing distributable artifacts.
 
+## Automatic Debian Package Builds
+
+The **Build Debian Package** GitHub Actions workflow
+(`.github/workflows/build-deb.yml`) builds a `.deb` for `x64` and `arm64` on
+every push to `main`, then tags and publishes a
+[GitHub release](https://github.com/NVIDIA/Personal-AI-Router/releases) with
+both packages attached. It exists so testers (for example, verifying GPU
+vendor support such as AMD) can grab an installable package without setting up
+the [Prerequisites](#prerequisites) locally. Install the downloaded package
+with:
+
+```bash
+sudo dpkg -i personal-ai-router_*.deb
+```
+
 ## Build the Services Alone
 
 The service scripts read `services/versions.json`, stamp each version, build 13
