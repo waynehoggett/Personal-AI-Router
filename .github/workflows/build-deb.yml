@@ -1,16 +1,70 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Builds the desktop Debian package for x64 and arm64 on every push to main,
+# stamps it with the next patch version, and publishes both packages as a
+# GitHub release so testers can install a build without a local toolchain.
 name: Build Debian Package
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+# One release at a time: two pushes landing close together would otherwise
+# both read the same latest tag and race to publish the same version.
+concurrency:
+  group: build-deb-release
+  cancel-in-progress: false
+
 jobs:
+  version:
+    name: Compute release version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Compute next version
+        id: version
+        # desktop/package.json carries the MAJOR.MINOR baseline (bump it by
+        # hand to start a new series); the patch number is one past the latest
+        # existing v<MAJOR>.<MINOR>.* tag, or the baseline itself when the series
+        # has no tag yet.
+        run: |
+          BASE_VERSION=$(node -p "require('./desktop/package.json').version")
+          MAJOR_MINOR="${BASE_VERSION%.*}"
+          BASE_PATCH="${BASE_VERSION##*.}"
+          LATEST_TAG=$(git tag -l "v${MAJOR_MINOR}.*" --sort=-v:refname | head -n1)
+          if [ -z "$LATEST_TAG" ]; then
+            NEXT_VERSION="$BASE_VERSION"
+          else
+            PATCH=$(echo "$LATEST_TAG" | sed -E 's/^v[0-9]+\.[0-9]+\.([0-9]+)$/\1/')
+            if [ "$PATCH" -ge "$BASE_PATCH" ]; then
+              NEXT_VERSION="${MAJOR_MINOR}.$((PATCH + 1))"
+            else
+              NEXT_VERSION="$BASE_VERSION"
+            fi
+          fi
+          echo "Base ${BASE_VERSION}, latest tag ${LATEST_TAG:-none}, releasing ${NEXT_VERSION}"
+          echo "version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+
   build-deb:
+    name: Build .deb (${{ matrix.arch }})
+    needs: version
     strategy:
+      fail-fast: false
       matrix:
         arch: [x64, arm64]
     runs-on: ubuntu-latest
@@ -22,71 +76,61 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "25.5.0"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: "1.25"
+          cache-dependency-path: services/**/go.sum
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Install dependencies
         working-directory: desktop
-        run: npm install
+        run: npm ci
+
+      - name: Stamp package version
+        # electron-builder names and versions the .deb from package.json, so the
+        # package inside the release must carry the release's version or dpkg
+        # would see every release as the same version and never upgrade.
+        working-directory: desktop
+        run: npm pkg set version="${{ needs.version.outputs.version }}"
 
       - name: Build Debian package
+        # build:linux:<arch> compiles the app with electron-vite and then
+        # packages it; the build:electron:linux:<arch> half alone packages an
+        # empty out/ directory and fails electron-builder's entry-file check.
         working-directory: desktop
-        run: npm run build:electron:linux:${{ matrix.arch }}
+        run: npm run build:linux:${{ matrix.arch }}
 
       - name: Upload Debian package artifact
         uses: actions/upload-artifact@v4
         with:
-          name: personal-ai-router-deb-${{ matrix.arch }}
-          path: desktop/release/**/linux/*.deb
+          name: nvpair-deb-${{ matrix.arch }}
+          path: desktop/release/*/linux/*.deb
           if-no-files-found: error
 
   release:
-    needs: build-deb
+    name: Publish release ${{ needs.version.outputs.tag }}
+    needs: [version, build-deb]
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Download all Debian package artifacts
+      - name: Download Debian package artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: personal-ai-router-deb-*
+          pattern: nvpair-deb-*
           path: artifacts
           merge-multiple: true
 
-      - name: Compute next version
-        id: version
-        run: |
-          BASE_VERSION=$(node -p "require('./desktop/package.json').version")
-          MAJOR_MINOR="${BASE_VERSION%.*}"
-          LATEST_TAG=$(git tag -l "v${MAJOR_MINOR}.*" --sort=-v:refname | head -n1)
-          if [ -z "$LATEST_TAG" ]; then
-            NEXT_VERSION="v${BASE_VERSION}"
-          else
-            PATCH=$(echo "$LATEST_TAG" | sed -E 's/^v[0-9]+\.[0-9]+\.([0-9]+)$/\1/')
-            NEXT_VERSION="v${MAJOR_MINOR}.$((PATCH + 1))"
-          fi
-          echo "version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Create and push tag
-        run: |
-          git tag ${{ steps.version.outputs.version }}
-          git push origin ${{ steps.version.outputs.version }}
-
-      - name: Create GitHub Release
+      - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: ${{ steps.version.outputs.version }}
+          tag_name: ${{ needs.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ needs.version.outputs.tag }}
           generate_release_notes: true
           files: artifacts/*.deb
+          fail_on_unmatched_files: true
