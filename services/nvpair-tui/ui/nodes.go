@@ -49,16 +49,6 @@ type nodesView struct {
 	nodes         []availableNode
 	status        string
 	width, height int
-	// rtt is the latest smoothed round trip to each node by hostUuid, from the
-	// broker's discovery:node-telemetry relay; absent until measured.
-	rtt map[string]int64
-}
-
-// nodeTelemetry is the subset of the broker's discovery:node-telemetry payload
-// (noderec.NodeTelemetry) this view renders.
-type nodeTelemetry struct {
-	HostUUID    string `json:"hostUuid"`
-	RoundTripMs int64  `json:"roundTripMs"`
 }
 
 type discoverySubscribedMsg struct{ err error }
@@ -77,7 +67,7 @@ type nodeInviteMsg struct {
 var niInviteKey = key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "invite to cluster"))
 
 func newNodesView(client *rpc.Client) *nodesView {
-	v := &nodesView{client: client, rtt: make(map[string]int64)}
+	v := &nodesView{client: client}
 	v.table = newTable(nil)
 	return v
 }
@@ -92,15 +82,14 @@ func (v *nodesView) Init() tea.Cmd {
 
 func (v *nodesView) SetSize(w, h int) {
 	v.width, v.height = w, h
-	const port, age, rtt, status = 7, 8, 8, 11
-	name := clampWidth((w-port-age-rtt-status-2)/2, 10)
-	addr := clampWidth(w-port-age-rtt-status-name-2, 10)
+	const port, age, status = 7, 8, 11
+	name := clampWidth((w-port-age-status-2)/2, 10)
+	addr := clampWidth(w-port-age-status-name-2, 10)
 	v.table.SetColumns([]table.Column{
 		{Title: "NAME", Width: name},
 		{Title: "ADDRESS", Width: addr},
 		{Title: "PORT", Width: port},
 		{Title: "SEEN", Width: age},
-		{Title: "RTT", Width: rtt},
 		{Title: "STATUS", Width: status},
 	})
 	v.table.SetWidth(w)
@@ -116,16 +105,10 @@ func (v *nodesView) Update(msg tea.Msg) tea.Cmd {
 		return nil
 
 	case NotificationMsg:
-		switch msg.Msg.Method {
-		case "discovery:nodes-changed":
+		if msg.Msg.Method == "discovery:nodes-changed" {
 			var nodes []availableNode
 			_ = decodeParams(msg.Msg.Params, &nodes)
 			v.setNodes(nodes)
-		case "discovery:node-telemetry":
-			var t nodeTelemetry
-			if decodeParams(msg.Msg.Params, &t) == nil && v.applyTelemetry(t) {
-				v.setNodes(v.nodes)
-			}
 		}
 		return nil
 
@@ -204,32 +187,10 @@ func (v *nodesView) setNodes(nodes []availableNode) {
 			n.IPAddress,
 			strconv.Itoa(n.Port),
 			ageUnix(n.LastSeen),
-			rttCell(v.rtt[n.HostUUID]),
 			nodeStatus(n),
 		})
 	}
 	v.table.SetRows(rows)
-}
-
-// applyTelemetry records a node's round trip and reports whether the RTT
-// column needs redrawing: a new figure, or the first for that node.
-func (v *nodesView) applyTelemetry(t nodeTelemetry) bool {
-	if t.HostUUID == "" || t.RoundTripMs <= 0 {
-		return false
-	}
-	if prev, ok := v.rtt[t.HostUUID]; ok && prev == t.RoundTripMs {
-		return false
-	}
-	v.rtt[t.HostUUID] = t.RoundTripMs
-	return true
-}
-
-// rttCell renders a round trip in milliseconds, "-" while unmeasured.
-func rttCell(ms int64) string {
-	if ms <= 0 {
-		return "-"
-	}
-	return fmt.Sprintf("%d ms", ms)
 }
 
 // nodeStatus is the STATUS cell for a discovered node: "Connected" for a paired

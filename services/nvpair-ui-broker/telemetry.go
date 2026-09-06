@@ -161,26 +161,6 @@ func (b *Broker) ingestTelemetryAt(source nodeSource, value noderec.NodeTelemetr
 	projected, ok := b.telemetry.Upsert(source, value, receivedAt)
 	if ok {
 		b.fanTelemetryToScheduler(projected)
-		b.pushTelemetry(projected)
-	}
-}
-
-// pushTelemetry relays one node's telemetry to the peer as a
-// discovery:node-telemetry notification, the same shape the scanner produces.
-// The desktop and terminal interfaces show the round trip it carries; they
-// poll node-info for hardware figures themselves, but distance is measured
-// from where the scanner asked, and one figure everywhere beats two. Gated on
-// discovery:subscribe like discovery:nodes-changed, so an unsubscribed peer
-// sees nothing.
-func (b *Broker) pushTelemetry(telemetry noderec.NodeTelemetry) {
-	b.subMu.Lock()
-	subscribed := b.subscribed
-	b.subMu.Unlock()
-	if !subscribed {
-		return
-	}
-	if err := b.codec.Notify(noderec.NotifyNodeTelemetry, telemetry); err != nil {
-		slog.Warn("emit discovery:node-telemetry failed", "host_uuid", telemetry.HostUUID, "err", err)
 	}
 }
 

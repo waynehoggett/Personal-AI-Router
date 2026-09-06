@@ -404,9 +404,7 @@ That is useful load feedback rather than a complete capacity model. These are th
 known limitations, stated plainly so you can predict where routing falls short.
 
 **It sees pressure, not capacity.** GPU model, available VRAM, and measured
-latency are not inputs, although the telemetry feed now carries each node's
-round trip (`roundTripMs`, see [Manual Nodes](#manual-nodes)) so a future policy
-can weigh a remote node's distance without a new signal. The same utilization percentage maps to the same pressure
+latency are not inputs. The same utilization percentage maps to the same pressure
 on a small and a large GPU, so a mixed cluster can still favor a slower machine.
 Missing or stale telemetry is neutral rather than treated as idle.
 
@@ -653,29 +651,6 @@ Some networks block or filter multicast, so discovery is not the only path in.
 fixed interval, and a manual node that answers is folded into the same directory
 as a discovered one. It is initially keyed by the address you typed, and re-keyed
 to the peer's real UUID as soon as that node reports it.
-
-This is also how a node on another network joins, such as a peer reached over
-Tailscale. The address picker treats Tailscale's `100.64.0.0/10` range as an
-overlay network: a host advertises its Tailscale address behind its LAN
-addresses, so a peer that shares only the tailnet can still find it, and a
-dialer ranks a `100.x` candidate below a shared LAN but above a public address.
-The Windows installer adds a separate, narrower rule set for that range: only
-PAIR's own service binaries, and only for packets addressed to the host's own
-tailnet address, which exist solely on the Tailscale adapter and so can only
-have arrived through Tailscale's authenticated tunnel. Discovery and mDNS get
-no tailnet rule. This extends the read-only metadata exposure described under
-trust boundaries to the devices on your tailnet and nothing more; the
-getting-started guide shows how to narrow it further with Tailscale ACLs.
-
-How far away a node is matters most for exactly these peers, so the scanner
-times its two-second telemetry fetch to each node and keeps a smoothed round
-trip per node (the manual-node prober does the same for nodes it owns). The
-figure travels on the telemetry feed as `roundTripMs`, which the broker passes
-to the scheduler untouched and relays to subscribed clients as
-`discovery:node-telemetry`; the desktop shows it on the node's card and the
-terminal interface in an RTT column. It is measured from the machine running
-the scanner, so it is that machine's distance to the node, and the local node
-shows none.
 
 ## Trust Boundaries
 

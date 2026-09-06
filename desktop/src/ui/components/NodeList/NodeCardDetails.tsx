@@ -69,11 +69,6 @@ function NodeCardDetails({ node }: NodeCardDetailsProps) {
         return data[data.length - 1].value ?? 0
     }
 
-    // The round trip is measured from this machine's scanner, so the local node
-    // reports its own loopback and the figure means nothing there.
-    const latestRoundTrip = nodeMetrics ? getLatestValue(nodeMetrics.roundTripMs) : 0
-    const latencyLabel = !isLocal && latestRoundTrip > 0 ? `${latestRoundTrip} ms` : undefined
-
     const gpuInfo: GpuInfo[] = useMemo(() => {
         if (!hasGpu) return []
 
@@ -279,7 +274,6 @@ function NodeCardDetails({ node }: NodeCardDetailsProps) {
                                 name={node.name}
                                 ipAddress={node.ipAddress}
                                 gpuLabel={gpuInfo.length > 0 ? gpuInfo[0].name : undefined}
-                                latencyLabel={latencyLabel}
                                 isLocal={isLocal}
                             />
                         </div>

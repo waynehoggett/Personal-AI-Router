@@ -87,7 +87,7 @@ Logs go to **stderr** (shared `applog` format, same as every other NVPAIR binary
 
 On startup — **before** emitting `app:ready` — the broker spawns the scanner and (when available) node-info, ollama-proxy, the workload-manager, and the cluster-manager as child processes over stdio. The proxy is spawned up front but doesn't gate `app:ready` — it announces its listen port asynchronously (see below). None of the auxiliary workers gate `app:ready`.
 
-**`nvpair-node-scanner`** (the consolidated discovery daemon) is spawned first. It pushes `discovery:node-discovered`, `discovery:node-updated`, and `discovery:node-removed` notifications into the broker, which maintains them in an in-memory map keyed by `id`. Clients query that map via `discovery:get-nodes` and — once they've opted in via `discovery:subscribe` — receive a `discovery:nodes-changed` notification on every store mutation. The raw `discovery:node-*` notifications are never forwarded as-is. The scanner polls healthy node-info endpoints on a staggered two-second cadence, backs consecutive remote failures off to a 30-second cap, and emits compact `discovery:node-telemetry` observations containing maximum GPU utilization, validity, age, and the fetch's smoothed round trip (`roundTripMs`); the broker feeds them to the scheduler and relays them to a subscribed client (see `discovery:node-telemetry` below). The broker registers this node's local service ports (`ni`/`er`/`wl`/`cl`/`em`, plus `ol`/`lm` from the engine poller) with the daemon over the same link, so the daemon can advertise them all in one `_nvpair-node` record.
+**`nvpair-node-scanner`** (the consolidated discovery daemon) is spawned first. It pushes `discovery:node-discovered`, `discovery:node-updated`, and `discovery:node-removed` notifications into the broker, which maintains them in an in-memory map keyed by `id`. Clients query that map via `discovery:get-nodes` and — once they've opted in via `discovery:subscribe` — receive a `discovery:nodes-changed` notification on every store mutation. The raw `discovery:node-*` notifications are never forwarded as-is. The scanner polls healthy node-info endpoints on a staggered two-second cadence, backs consecutive remote failures off to a 30-second cap, and emits compact `discovery:node-telemetry` observations containing maximum GPU utilization, validity, and age; these remain internal to broker scheduling. The broker registers this node's local service ports (`ni`/`er`/`wl`/`cl`/`em`, plus `ol`/`lm` from the engine poller) with the daemon over the same link, so the daemon can advertise them all in one `_nvpair-node` record.
 
 **`nvpair-node-info`** is spawned next. It's a server, not an event source: it stands up the local `/v1/node-info` HTTP endpoint (GPU/CPU/memory inventory). It does not advertise itself — the broker registers its `ni` port with the scanner daemon, which carries it in the node record, and a peer's daemon fetches `/v1/node-info` over plain HTTP to enrich the node. The broker doesn't read anything back from node-info's stdout (drained and discarded). Spawning it is **optional**: if the binary can't be resolved (and no `--node-info-path` override was given) the broker logs a warning and continues serving discovery without it.
 
@@ -168,16 +168,6 @@ A few semantics worth knowing:
 - **Fires on `lastSeen`-only changes too.** A periodic re-discovery that produces an otherwise byte-identical record still bumps `lastSeen`, which is a genuine freshness signal worth surfacing.
 - **Empty array is a valid payload.** If every previously-known node ages out, you'll get a `discovery:nodes-changed` with `"params": []`.
 - **Best-effort delivery.** The broker tries the notification once per mutation; transient write errors are logged but not retried.
-
-#### `discovery:node-telemetry`
-
-**Opt-in**, gated on the same `discovery:subscribe` as `discovery:nodes-changed`. Fired once per telemetry observation the broker ingests, from the scanner (every two seconds per healthy node) or the manual-node prober (every ten seconds per manual node). The payload is one `NodeTelemetry` object, the same shape the scanner produces and the scheduler consumes: `hostUuid`, `gpuUtilizationPercent`, `telemetryValid`, `msSince`, and `roundTripMs` — the smoothed round trip, in whole milliseconds, of the observer's node-info request to that node (at least 1 once measured; absent until then). `msSince` is aged forward to the moment of the relay; `roundTripMs` is a measurement and passes through unchanged.
-
-```json
-{"jsonrpc":"2.0","method":"discovery:node-telemetry","params":{"hostUuid":"8661676a-…","gpuUtilizationPercent":42,"telemetryValid":true,"msSince":137,"roundTripMs":23}}
-```
-
-Clients that poll node-info themselves keep doing so for hardware figures; this stream exists for the one value they cannot measure, how far the node is from the machine running the scanner. The local node reports its own loopback and clients hide that figure.
 
 #### `proxy:<event>`
 

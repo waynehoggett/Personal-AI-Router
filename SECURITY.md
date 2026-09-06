@@ -88,30 +88,6 @@ the operator's responsibility.
 leaves the machine or LAN. Inference engines, model catalogs, update systems,
 applications, and user configuration may contact external services.
 
-### A Tailnet Is Treated Like the Local Network
-
-A node added by its Tailscale address is reached over Tailscale's authenticated,
-encrypted tunnel, and PAIR treats the tailnet as an extension of the local
-network: the same read-only inventory and telemetry endpoint, the same
-PIN-then-mutual-TLS pairing, the same loopback-only plaintext inference. What
-a tailnet peer can reach is deliberately narrower than what a LAN peer can:
-
-- On Windows, the installer's Tailscale rules admit only packets addressed to
-  the host's own tailnet address, which exist solely on the Tailscale adapter
-  and so can only have arrived through the tunnel, and only for PAIR's own
-  service binaries. Discovery and mDNS get no tailnet rule, because a tailnet
-  carries no multicast.
-- The inference proxies refuse plaintext from any non-loopback address, tailnet
-  included; a tailnet peer can send inference only as a paired cluster member
-  over mutual TLS.
-- Node inventory and telemetry over plain HTTP are readable by every device on
-  the tailnet, as they are by every device on the LAN.
-
-Every device signed into the tailnet is inside this boundary. Use Tailscale
-ACLs to restrict which devices may reach PAIR's ports (the port list and an
-example policy are in the getting-started guide), and remove a device from the
-tailnet, or the cluster, when it should no longer take part.
-
 ### Pairing PIN Is a Bootstrap Convenience
 
 The six-digit PIN is low entropy. Do not treat it as a durable credential or as

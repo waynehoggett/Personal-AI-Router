@@ -621,14 +621,4 @@ type NodeTelemetry struct {
 	GPUUtilizationPct uint32 `json:"gpuUtilizationPercent"`
 	TelemetryValid    bool   `json:"telemetryValid"`
 	MSSince           int64  `json:"msSince"`
-	// RoundTripMs is the smoothed round-trip time, in whole milliseconds, of
-	// the observer's telemetry request to this node: from sending the node-info
-	// request to reading its answer, over the address that answered. It is how
-	// far away the node is on the network from where the request was made,
-	// which is what a peer on another site pays on every token it serves.
-	//
-	// It is a measurement, not an age: unlike MSSince a relay carries it
-	// untouched. At least 1 once measured, so zero means "no sample yet", which
-	// omitempty drops and an older producer never sends.
-	RoundTripMs int64 `json:"roundTripMs,omitempty"`
 }

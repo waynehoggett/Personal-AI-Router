@@ -23,11 +23,7 @@ import {
 import type { ProxyEngine } from './modular-state'
 import type { JsonObject, JsonValue } from './json-rpc-subprocess'
 import { emptyInvite, parseClusterNodes, parseInvite, parseNodeIdentity } from './cluster-json'
-import {
-    addManualNodeEntry,
-    removeManualNodeEntry,
-    resolveManualNodeKey
-} from './manual-nodes-store'
+import { removeManualNodeEntry, resolveManualNodeKey } from './manual-nodes-store'
 
 type BridgeHandler<C extends WsInvokeChannel> = (
     payload?: WsInvokeRequest<C>
@@ -903,23 +899,6 @@ async function handleClusterCancelInvite(
     return result
 }
 
-/**
- * Register a node by address with `nvpair-manual-nodes` through the broker's
- * `node/add` relay and persist it for replay. The backend keys the manual node
- * by `name`, so the address doubles as the name to keep one key everywhere
- * (see `resolveManualNodeKey`). The broker call goes first: a persisted entry
- * the backend refused would only fail again on every replay.
- */
-async function handleNodeAddManual(
-    payload?: WsInvokeRequest<'nodes:add-manual'>
-): Promise<WsInvokeResponse<'nodes:add-manual'>> {
-    const address = payload?.address.trim() ?? ''
-    if (!address) throw new Error('address is required')
-    await getModularSupervisor().callProcess('broker', 'node/add', { address, name: address })
-    addManualNodeEntry(address)
-    return { address }
-}
-
 async function handleNodeRemoveMember(
     payload?: WsInvokeRequest<'nodes:remove-member'>
 ): Promise<WsInvokeResponse<'nodes:remove-member'>> {
@@ -973,7 +952,6 @@ const EMPTY_SERVICE_BRIDGE_HANDLERS: BridgeHandlerMap = {
 
     'nodes:get-initial': () => getModularBridgeState().getNodesInitial(),
     'nodes:remove-member': payload => handleNodeRemoveMember(payload),
-    'nodes:add-manual': payload => handleNodeAddManual(payload),
 
     'discovery:get-nodes': () => getModularBridgeState().getAvailableNodes(),
 
