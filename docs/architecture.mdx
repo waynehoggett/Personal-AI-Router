@@ -652,15 +652,6 @@ fixed interval, and a manual node that answers is folded into the same directory
 as a discovered one. It is initially keyed by the address you typed, and re-keyed
 to the peer's real UUID as soon as that node reports it.
 
-This is also how a node on another network joins, such as a peer reached over
-Tailscale. The address picker treats Tailscale's `100.64.0.0/10` range as an
-overlay network: a host advertises its Tailscale address behind its LAN
-addresses, so a peer that shares only the tailnet can still find it, and a
-dialer ranks a `100.x` candidate below a shared LAN but above a public address.
-The Windows firewall rules the installer adds admit that range next to the
-local subnet, which extends the read-only metadata exposure described under
-trust boundaries to the machines on your tailnet.
-
 ## Trust Boundaries
 
 ```mermaid

@@ -318,30 +318,6 @@ manually if you run a restrictive firewall.
 | `14322` | Model list served to cluster peers |
 | `14323` | Cluster-scoped remote engine control |
 
-### Nodes on Other Networks (Tailscale)
-
-Discovery uses multicast, which does not cross a router or a VPN, so a node on
-another network is never listed automatically. A node reached over
-[Tailscale](https://tailscale.com/) works if you add it by address:
-
-1. Install Tailscale on both machines and sign them into the same tailnet.
-2. On the inviting machine, open **Add node**, enter the other node's Tailscale
-   IP (a `100.x.y.z` address, shown by `tailscale ip -4`), select **Node is on
-   another network**, then **Invite**.
-3. Enter the PIN on the other node as usual.
-
-PAIR keeps that address as a manual node, polls it directly for telemetry and
-models, and routes to it like any discovered node. The Windows installer's
-firewall rules allow the Tailscale range (`100.64.0.0/10`) alongside the local
-subnet, so no firewall change is needed there; on Linux, allow the ports above
-from the `tailscale0` interface if you run a restrictive firewall.
-
-Use the Tailscale IP rather than the MagicDNS name. Tailscale IPs are stable per
-device, and PAIR's cluster membership resolves peers by IP. Inference over a
-tailnet is bounded by the link between the two sites: a request served on a
-remote node pays that round trip on every token, so keep latency-sensitive
-work on the local network where you can.
-
 ### Changing a Port
 
 Both the proxy port and the engine port are editable in PAIR:

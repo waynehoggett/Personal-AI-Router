@@ -10,11 +10,9 @@ import (
 )
 
 func TestRankRemote_DemotesOnlyUnusableClasses(t *testing.T) {
-	// Docker's default bridge and link-local rank below any real private or
-	// public address. The private blocks are NOT ranked against each other:
-	// which one the fleet shares is not a property of the prefix. An overlay
-	// address (Tailscale's 100.64/10) is usable and sits just below the
-	// private blocks: it is how a peer on another LAN reaches this one.
+	// Docker's default bridge, CGNAT and link-local rank below any real private
+	// or public address. The private blocks are NOT ranked against each other:
+	// which one the fleet shares is not a property of the prefix.
 	got := RankRemote([]string{"169.254.3.3", "172.17.0.2", "10.5.5.5", "100.64.0.1", "192.168.0.10"})
 	if len(got) != 5 {
 		t.Fatalf("RankRemote = %v, want 5 entries", got)
@@ -22,31 +20,11 @@ func TestRankRemote_DemotesOnlyUnusableClasses(t *testing.T) {
 	if got[0] != "10.5.5.5" || got[1] != "192.168.0.10" {
 		t.Errorf("RankRemote leading entries = %v, want the two private addresses first in string order", got)
 	}
-	want := []string{"100.64.0.1", "172.17.0.2", "169.254.3.3"}
+	want := []string{"172.17.0.2", "100.64.0.1", "169.254.3.3"}
 	for i, w := range want {
 		if got[2+i] != w {
 			t.Fatalf("RankRemote = %v, want %v in the trailing positions", got, want)
 		}
-	}
-}
-
-// TestScoreIP_OverlayBetweenPrivateAndPublic pins the overlay class: a 100.64/10
-// address ranks below the LAN a peer shares but above a public address, Docker's
-// bridge, and link-local, because on a host it is an overlay network's address
-// and reachable by every peer on that overlay.
-func TestScoreIP_OverlayBetweenPrivateAndPublic(t *testing.T) {
-	overlay := scoreIP(net.ParseIP("100.101.102.103"))
-	if private := scoreIP(net.ParseIP("10.5.5.5")); overlay >= private {
-		t.Fatalf("overlay(%d) must rank below private(%d)", overlay, private)
-	}
-	for _, below := range []string{"8.8.8.8", "172.17.0.1", "169.254.3.3"} {
-		if s := scoreIP(net.ParseIP(below)); s >= overlay {
-			t.Fatalf("%s(%d) must rank below overlay(%d)", below, s, overlay)
-		}
-	}
-	// The range is exactly 100.64/10: 100.63.x and 100.128.x are public.
-	if scoreIP(net.ParseIP("100.63.255.255")) != scorePublic || scoreIP(net.ParseIP("100.128.0.1")) != scorePublic {
-		t.Fatal("addresses just outside 100.64/10 must score as public")
 	}
 }
 
@@ -322,44 +300,6 @@ func TestRankLocal_OverlayRunsWhenNoPhysicalAddressQualifies(t *testing.T) {
 	}
 	ev := Evidence{SendFailed: map[string]bool{"eth0": true}}
 	assertRanked(t, rankLocal(ifaces, ev, ""), []string{"100.101.102.103", "10.0.0.5"})
-}
-
-// TestRankLocal_TailnetPublishedBehindLAN: a Tailscale address is published even
-// when a physical LAN address qualifies, because the peers it serves are on other
-// LANs, cannot use the LAN address, and have no multicast path to learn this one
-// by any other means. It never displaces the LAN as the canonical answer.
-func TestRankLocal_TailnetPublishedBehindLAN(t *testing.T) {
-	ifaces := []localIface{
-		{name: "tailscale0", addrs: []localAddr{{ip: "100.101.102.103", prefixLen: 32}}},
-		{name: "eth0", addrs: []localAddr{{ip: "10.0.0.5", prefixLen: 24}}},
-	}
-	assertRanked(t, rankLocal(ifaces, Evidence{}, "10.0.0.5"), []string{"10.0.0.5", "100.101.102.103"})
-
-	// Windows names the adapter "Tailscale"; macOS gives it an anonymous utun,
-	// where the 100.64/10 address alone identifies it.
-	ifaces[0].name = "Tailscale"
-	assertRanked(t, rankLocal(ifaces, Evidence{}, "10.0.0.5"), []string{"10.0.0.5", "100.101.102.103"})
-	ifaces[0].name = "utun4"
-	assertRanked(t, rankLocal(ifaces, Evidence{}, "10.0.0.5"), []string{"10.0.0.5", "100.101.102.103"})
-
-	// A utun carrying some other VPN's private range is still an unproven
-	// overlay and stays unpublished behind a qualified LAN.
-	ifaces[0].addrs[0] = localAddr{ip: "10.99.0.2", prefixLen: 24}
-	assertRanked(t, rankLocal(ifaces, Evidence{}, "10.0.0.5"), []string{"10.0.0.5"})
-}
-
-// TestRankLocal_ProvenOverlaysKeepOrderAndTailnetIsNotRepeated: overlay
-// addresses peers have connected to are published in their own ranked order
-// behind the LAN, and a tailnet address among them appears once, not again as
-// the recognised-overlay entry.
-func TestRankLocal_ProvenOverlaysKeepOrderAndTailnetIsNotRepeated(t *testing.T) {
-	ifaces := []localIface{
-		{name: "tailscale0", addrs: []localAddr{{ip: "100.101.102.103", prefixLen: 32}}},
-		{name: "wg0", addrs: []localAddr{{ip: "10.99.0.2", prefixLen: 24}}},
-		{name: "eth0", addrs: []localAddr{{ip: "10.0.0.5", prefixLen: 24}}},
-	}
-	ev := Evidence{PeerObserved: map[string]bool{"10.99.0.2": true, "100.101.102.103": true}}
-	assertRanked(t, rankLocal(ifaces, ev, "10.0.0.5"), []string{"10.0.0.5", "10.99.0.2", "100.101.102.103"})
 }
 
 // assertRanked compares a ranking to the exact list expected, in order.

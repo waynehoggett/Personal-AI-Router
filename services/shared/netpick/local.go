@@ -88,18 +88,6 @@ func (e Evidence) peerObserved(ip string) bool  { return e.PeerObserved[ip] }
 // host that does have a qualified physical address still publishes an overlay
 // address a peer has actually connected to, because qualification is judged from
 // here and that peer's connection is judged from there.
-// overlayNetwork reports whether an address on a virtual interface belongs to a
-// known overlay network — one that connects this host to specific remote peers by
-// design, not a bridge or VM adapter that happens to be virtual. Today that is
-// Tailscale: an interface named for it (tailscale0 on Linux, "Tailscale" on
-// Windows) or, on macOS where the adapter is an anonymous utun, an address in
-// its 100.64/10 range. Such an address is published even when a physical LAN
-// address qualifies, because the peers it serves are precisely the ones the LAN
-// address cannot reach and they have no multicast path to learn it otherwise.
-func overlayNetwork(name string, ip net.IP) bool {
-	return strings.Contains(strings.ToLower(name), "tailscale") || overlayIP(ip)
-}
-
 func virtualIface(name string) bool {
 	n := strings.ToLower(name)
 	for _, v := range []string{
@@ -159,11 +147,8 @@ type candidate struct {
 	// direct-connect link is genuinely reachable by the machine on its far end,
 	// and dropping it would deny that pair its fast path. It just must never be
 	// the canonical answer while any qualified address exists.
-	qualified bool
-	peerSeen  bool
-	// overlayNet marks an address on a known overlay network (see
-	// overlayNetwork), which is published even behind a qualified LAN address.
-	overlayNet  bool
+	qualified   bool
+	peerSeen    bool
 	peerOnLink  bool
 	routeSource bool
 	physical    int
@@ -230,23 +215,9 @@ func rankLocal(ifaces []localIface, ev Evidence, routeIP string) []string {
 	// qualified is betterThan's first key, so the leading candidate alone answers
 	// whether this host has any qualified physical address.
 	if len(physical) > 0 && physical[0].qualified {
-		return addresses(append(append(physical, peerProven(overlay)...), overlayNetworks(overlay)...))
+		return addresses(append(physical, peerProven(overlay)...))
 	}
 	return addresses(append(overlay, physical...))
-}
-
-// overlayNetworks keeps the candidates on a known overlay network (see
-// overlayNetwork). They are published after the physical addresses and any
-// peer-proven overlay so the LAN stays canonical; a peer that shares only the
-// overlay with us finds its address further down the list.
-func overlayNetworks(cands []candidate) []candidate {
-	out := make([]candidate, 0, len(cands))
-	for _, c := range cands {
-		if c.overlayNet {
-			out = append(out, c)
-		}
-	}
-	return out
 }
 
 // peerProven keeps the candidates a remote peer has demonstrably connected to.
@@ -321,7 +292,6 @@ func rankIfaces(ifaces []localIface, ev Evidence, routeIP string, virtual bool) 
 				ip:          ip4.String(),
 				qualified:   !ifi.pointToPoint && !narrow && !sendFailed,
 				peerSeen:    ev.peerObserved(ip4.String()),
-				overlayNet:  virtual && overlayNetwork(ifi.name, ip4),
 				peerOnLink:  peerOnLink,
 				routeSource: routeIP != "" && ip4.String() == routeIP,
 				physical:    physical,

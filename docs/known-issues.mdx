@@ -32,16 +32,6 @@ scheduler counts workloads. A wrong figure does not send work to the wrong place
 It misleads *you* when you decide which node should hold a large model, so on
 those systems judge capacity from the machine's own tools rather than from PAIR.
 
-## Tailscale Nodes Must Be Added by IP
-
-A node on another network reached over Tailscale is not discovered; add it from
-**Add node** with **Node is on another network** selected, as described in
-[Nodes on Other Networks](getting-started.mdx#nodes-on-other-networks-tailscale).
-Enter its Tailscale IP, not its MagicDNS name: the cluster resolves paired peers
-by IP, so a hostname pairs but is not re-resolved afterwards and the node can
-drop out of the routing pool. Tailscale IPs are stable per device, so this
-costs nothing in practice.
-
 ## Scheduling Only Counts Jobs
 
 The single scheduling policy ranks nodes by how much work is already queued on
