@@ -340,9 +340,7 @@ Use the Tailscale IP rather than the MagicDNS name. Tailscale IPs are stable per
 device, and PAIR's cluster membership resolves peers by IP. Inference over a
 tailnet is bounded by the link between the two sites: a request served on a
 remote node pays that round trip on every token, so keep latency-sensitive
-work on the local network where you can. The node's card shows the measured
-round trip from this machine (for example `23 ms`) once PAIR has polled it, so
-you can see that cost before routing to it.
+work on the local network where you can.
 
 ### Changing a Port
 

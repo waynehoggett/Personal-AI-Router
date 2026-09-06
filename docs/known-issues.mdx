@@ -45,11 +45,9 @@ costs nothing in practice.
 ## Scheduling Only Counts Jobs
 
 The single scheduling policy ranks nodes by how much work is already queued on
-them and coarse GPU pressure. It does not consider GPU model, available memory,
+them. It does not consider GPU model, available memory, current utilization,
 measured latency, whether a model is already loaded, or how expensive a request
-looks. Latency is now measured and shown on each node's card, but it does not
-yet steer routing, so a request can land on a distant node over Tailscale as
-readily as on one beside you. On a cluster of similar machines this behaves reasonably. On a mixed one,
+looks. On a cluster of similar machines this behaves reasonably. On a mixed one,
 expect work to land on a slower node about as often as a faster one.
 
 The full list of gaps is in

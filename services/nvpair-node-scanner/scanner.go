@@ -10,7 +10,6 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"nvpair-shared/applog"
 	"nvpair-shared/clustertrust"
@@ -51,11 +50,6 @@ type NodeInfoResponse struct {
 	// membership, while a node reporting "" is asserting it has none. Reading
 	// absent as unclustered would mark a clustered peer invitable.
 	ClusterUUID *string `json:"clusterUuid"`
-
-	// roundTrip is how long the fetch that produced this response took, from
-	// sending the request to decoding the body. Set by fetchNodeInfoWithin on
-	// every successful fetch; never on the wire.
-	roundTrip time.Duration
 }
 
 type ReadyParams struct {

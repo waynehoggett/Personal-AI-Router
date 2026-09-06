@@ -10,7 +10,6 @@ import (
 	"io"
 	"log/slog"
 	"maps"
-	"math"
 	"net"
 	"net/http"
 	"os"
@@ -91,12 +90,6 @@ type daemon struct {
 	// into a torn self entry. The self key is written nowhere else — onBrowse
 	// ignores our own uuid — so this is the sole self-key writer lock.
 	selfMu sync.Mutex
-
-	// rtt is the per-node smoothed telemetry round trip, in milliseconds, that
-	// smoothRoundTrip maintains; rttMu guards it because telemetry workers run
-	// concurrently. Entries are dropped with the node in forget.
-	rttMu sync.Mutex
-	rtt   map[string]float64
 
 	// lastInfo / lastModels cache each node's last successful enrichment (keyed by
 	// hostUuid) — GPU/CPU/memory from node-info and the model list from
@@ -1300,9 +1293,6 @@ func (d *daemon) fetchNodeInfoWithin(ctx context.Context, ip string, port int) (
 		slog.Debug("node-info request build failed", "ip", ip, "url", url, "err", err)
 		return NodeInfoResponse{}, false
 	}
-	// Timed from here rather than from the caller so the per-origin wait above
-	// is excluded: that is this daemon queueing behind itself, not the network.
-	started := time.Now()
 	resp, err := client.Do(req)
 	if err != nil {
 		slog.Debug("node-info fetch failed", "ip", ip, "url", url, "err", err)
@@ -1319,7 +1309,6 @@ func (d *daemon) fetchNodeInfoWithin(ctx context.Context, ip string, port int) (
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
 		return NodeInfoResponse{}, false
 	}
-	info.roundTrip = time.Since(started)
 	return info, true
 }
 
@@ -1656,32 +1645,8 @@ func (d *daemon) refreshNodeTelemetryCandidates(ctx context.Context, hostUUID st
 		GPUUtilizationPct: utilization,
 		TelemetryValid:    info.TelemetryValid,
 		MSSince:           age,
-		RoundTripMs:       d.smoothRoundTrip(hostUUID, info.roundTrip),
 	})
 	return true
-}
-
-// telemetryRTTAlpha is the weight of the newest round-trip sample in the
-// per-node average. A telemetry fetch happens every two seconds, so 0.3
-// settles on a changed link within about ten samples while a single slow
-// answer moves the reported figure by less than a third of its excess.
-const telemetryRTTAlpha = 0.3
-
-// smoothRoundTrip folds one round-trip sample into the node's running average
-// and returns the value to report: whole milliseconds, at least 1 once a
-// sample exists so the wire's zero keeps meaning "never measured".
-func (d *daemon) smoothRoundTrip(hostUUID string, sample time.Duration) int64 {
-	ms := float64(sample.Microseconds()) / 1000
-	d.rttMu.Lock()
-	defer d.rttMu.Unlock()
-	if d.rtt == nil {
-		d.rtt = make(map[string]float64)
-	}
-	if prev, ok := d.rtt[hostUUID]; ok {
-		ms = telemetryRTTAlpha*ms + (1-telemetryRTTAlpha)*prev
-	}
-	d.rtt[hostUUID] = ms
-	return max(int64(math.Round(ms)), 1)
 }
 
 // refreshClusterIdentityOnce re-reads every peer's cluster membership from its
@@ -1893,9 +1858,6 @@ func (d *daemon) refreshNodeModelsCandidates(hostUUID, guardIP string, hosts []s
 // re-discovery re-probes from scratch rather than resurrecting stale metrics.
 func (d *daemon) forget(hostUUID string) {
 	d.telemetryRetries.forget(hostUUID)
-	d.rttMu.Lock()
-	delete(d.rtt, hostUUID)
-	d.rttMu.Unlock()
 	d.infoMu.Lock()
 	delete(d.lastInfo, hostUUID)
 	delete(d.lastInfoAt, hostUUID)

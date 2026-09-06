@@ -10,7 +10,6 @@ import (
 	"io"
 	"log"
 	"log/slog"
-	"math"
 	"net"
 	"net/http"
 	"strconv"
@@ -125,12 +124,6 @@ type ManualNodeStatus struct {
 	Memory         *MemoryInfo `json:"memory,omitempty"`
 	TelemetryValid bool        `json:"telemetryValid"`
 	MSSince        int64       `json:"msSince"`
-	// RoundTripMs is the smoothed round trip of this prober's node-info request
-	// to the node, in whole milliseconds (at least 1 once measured; 0 means no
-	// successful probe yet). The same figure the scanner reports for a
-	// discovered node, so a manual node on another network shows how far away
-	// it is exactly like a discovered one.
-	RoundTripMs int64 `json:"roundTripMs,omitempty"`
 	// HostUUID is the remote's stable per-host identity from node-info, so a
 	// manual node carries the same permanent identity the rest of the system
 	// keys on. Empty when node-info didn't report one.
@@ -152,10 +145,6 @@ type trackedNode struct {
 	// probeFailThreshold so a single transient failure doesn't
 	// generate UI noise.
 	consecutiveFails int
-
-	// rttMs is the running average behind ManualNodeStatus.RoundTripMs, kept
-	// unrounded so the smoothing does not accumulate rounding error.
-	rttMs float64
 }
 
 type Manager struct {
@@ -289,7 +278,7 @@ func (m *Manager) probeNode(entry ManualEntry) {
 			probeClient = &http.Client{Timeout: probeTimeout, Transport: &http.Transport{TLSClientConfig: cfg, DisableKeepAlives: true}}
 		}
 	}
-	nodeInfoUp, info, roundTrip := m.probeNodeInfo(probeClient, scheme, addr, nodeInfoPort)
+	nodeInfoUp, info := m.probeNodeInfo(probeClient, scheme, addr, nodeInfoPort)
 
 	newStatus := ManualNodeStatus{
 		ID:             id,
@@ -331,13 +320,6 @@ func (m *Manager) probeNode(entry ManualEntry) {
 	if !nodeInfoUp && newStatus.HostUUID == "" {
 		newStatus.HostUUID = prev.HostUUID
 	}
-	if nodeInfoUp {
-		tn.rttMs = smoothRoundTripMs(tn.rttMs, prev.RoundTripMs > 0, roundTrip)
-		newStatus.RoundTripMs = max(int64(math.Round(tn.rttMs)), 1)
-	} else {
-		// No answer, no distance: the last figure would only age into a lie.
-		tn.rttMs = 0
-	}
 	tn.status = newStatus
 	if reachable {
 		tn.consecutiveFails = 0
@@ -357,8 +339,7 @@ func (m *Manager) probeNode(entry ManualEntry) {
 		!cpuEqual(prev.CPU, newStatus.CPU) ||
 		!memoryEqual(prev.Memory, newStatus.Memory) ||
 		prev.TelemetryValid != newStatus.TelemetryValid ||
-		prev.MSSince != newStatus.MSSince ||
-		prev.RoundTripMs != newStatus.RoundTripMs
+		prev.MSSince != newStatus.MSSince
 
 	if changed {
 		slog.Info("manual node state changed",
@@ -515,10 +496,7 @@ func (m *Manager) fetchOllamaModels(addr string, port int) []string {
 	return names
 }
 
-// probeNodeInfo fetches the node's node-info document. The returned duration is
-// the request's round trip, from sending it to decoding the body, and is
-// meaningful only when the first result is true.
-func (m *Manager) probeNodeInfo(client *http.Client, scheme, addr string, port int) (bool, NodeInfoResponse, time.Duration) {
+func (m *Manager) probeNodeInfo(client *http.Client, scheme, addr string, port int) (bool, NodeInfoResponse) {
 	url := scheme + "://" + net.JoinHostPort(addr, strconv.Itoa(port)) + "/v1/node-info"
 	start := time.Now()
 	resp, err := client.Get(url)
@@ -526,14 +504,14 @@ func (m *Manager) probeNodeInfo(client *http.Client, scheme, addr string, port i
 		slog.Debug("manual probe node-info failed",
 			"addr", addr, "port", port, "scheme", scheme,
 			"duration_ms", time.Since(start).Milliseconds(), "err", err)
-		return false, NodeInfoResponse{}, 0
+		return false, NodeInfoResponse{}
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		slog.Debug("manual probe node-info non-OK",
 			"addr", addr, "port", port, "scheme", scheme, "status", resp.StatusCode,
 			"duration_ms", time.Since(start).Milliseconds())
-		return false, NodeInfoResponse{}, 0
+		return false, NodeInfoResponse{}
 	}
 
 	var result NodeInfoResponse
@@ -541,29 +519,13 @@ func (m *Manager) probeNodeInfo(client *http.Client, scheme, addr string, port i
 		slog.Debug("manual probe node-info decode failed",
 			"addr", addr, "port", port, "scheme", scheme, "err", err,
 			"duration_ms", time.Since(start).Milliseconds())
-		return false, NodeInfoResponse{}, 0
+		return false, NodeInfoResponse{}
 	}
-	roundTrip := time.Since(start)
 	slog.Debug("manual probe node-info up",
 		"addr", addr, "port", port, "scheme", scheme, "gpus", len(result.GPUs),
 		"has_cpu", result.CPU != nil, "has_memory", result.Memory != nil,
-		"duration_ms", roundTrip.Milliseconds())
-	return true, result, roundTrip
-}
-
-// probeRTTAlpha is the weight of the newest round-trip sample in a manual
-// node's running average. Manual probes run every ten seconds, so a heavier
-// weight than the scanner's keeps the figure responsive to a changed link.
-const probeRTTAlpha = 0.5
-
-// smoothRoundTripMs folds a new round-trip sample into the running average in
-// milliseconds; the first sample after an outage starts a fresh average.
-func smoothRoundTripMs(prev float64, havePrev bool, sample time.Duration) float64 {
-	ms := float64(sample.Microseconds()) / 1000
-	if !havePrev {
-		return ms
-	}
-	return probeRTTAlpha*ms + (1-probeRTTAlpha)*prev
+		"duration_ms", time.Since(start).Milliseconds())
+	return true, result
 }
 
 func (m *Manager) addNode(entry ManualEntry) ManualNodeStatus {
