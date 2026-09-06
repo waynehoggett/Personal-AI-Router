@@ -109,82 +109,41 @@
   pairNoLeftover:
 !macroend
 
-; Rules use `profile=any remoteip=localsubnet` (NOT profile=private,domain).
-; A LAN-discovery product must work even when Windows has classified the home
-; network as Public (common on laptops / when the user declined network
-; discovery) — private,domain-scoped rules silently don't apply on a Public
-; network, so inbound TCP 14318 (node-info) is dropped and peers can discover
-; the node over mDNS but never complete the node-info handshake (no metrics,
-; missing from "Available nodes"). Scoping to localsubnet keeps the ports
-; closed to anything off the local link, so covering all profiles does not
-; expose the node on untrusted public networks.
+; Rules use `profile=any remoteip=localsubnet,100.64.0.0/10` (NOT
+; profile=private,domain). A LAN-discovery product must work even when Windows
+; has classified the home network as Public (common on laptops / when the user
+; declined network discovery) — private,domain-scoped rules silently don't
+; apply on a Public network, so inbound TCP 14318 (node-info) is dropped and
+; peers can discover the node over mDNS but never complete the node-info
+; handshake (no metrics, missing from "Available nodes"). Scoping to localsubnet
+; keeps the ports closed to anything off the local link, so covering all
+; profiles does not expose the node on untrusted public networks.
 ;
-; A second, narrower set (pairAddTailnetFirewallRules) admits Tailscale peers,
-; which are never in localsubnet: the adapter is a /32, so without it every
-; inbound PAIR connection from a tailnet peer is dropped.
+; 100.64.0.0/10 is added for Tailscale, which assigns every node an address in
+; that range and is the supported way to pair a node on another network. A
+; tailnet peer is never in localsubnet (the adapter is a /32), so without this
+; every inbound PAIR connection from it is dropped. The range is RFC 6598 shared
+; address space: it is not routed on the public internet, so admitting it opens
+; the ports only to machines on the user's own tailnet.
 !macro pairAddFirewallRules
   DetailPrint "Adding Personal AI Router firewall rules..."
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Ollama Proxy" dir=in action=allow program="$INSTDIR\resources\cli-bin\ollama-proxy.exe" enable=yes profile=any remoteip=localsubnet'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router LM Studio Proxy" dir=in action=allow program="$INSTDIR\resources\cli-bin\lmstudio-proxy.exe" enable=yes profile=any remoteip=localsubnet'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Node Info" dir=in action=allow program="$INSTDIR\resources\cli-bin\nvpair-node-info.exe" enable=yes profile=any remoteip=localsubnet'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Node Scanner" dir=in action=allow program="$INSTDIR\resources\cli-bin\nvpair-node-scanner.exe" enable=yes profile=any remoteip=localsubnet'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Workload Manager" dir=in action=allow program="$INSTDIR\resources\cli-bin\nvpair-workload-manager.exe" enable=yes profile=any remoteip=localsubnet'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Errors" dir=in action=allow program="$INSTDIR\resources\cli-bin\nvpair-errors.exe" enable=yes profile=any remoteip=localsubnet'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Cluster Manager" dir=in action=allow program="$INSTDIR\resources\cli-bin\nvpair-cluster-manager.exe" enable=yes profile=any remoteip=localsubnet'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Engine Manager" dir=in action=allow program="$INSTDIR\resources\cli-bin\nvpair-engine-manager.exe" enable=yes profile=any remoteip=localsubnet'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router mDNS (UDP 5353)" dir=in action=allow protocol=UDP localport=5353 program="$INSTDIR\resources\cli-bin\ollama-proxy.exe" enable=yes profile=any remoteip=localsubnet'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router mDNS LM Studio Proxy (UDP 5353)" dir=in action=allow protocol=UDP localport=5353 program="$INSTDIR\resources\cli-bin\lmstudio-proxy.exe" enable=yes profile=any remoteip=localsubnet'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router mDNS Node Info (UDP 5353)" dir=in action=allow protocol=UDP localport=5353 program="$INSTDIR\resources\cli-bin\nvpair-node-info.exe" enable=yes profile=any remoteip=localsubnet'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router mDNS Node Scanner (UDP 5353)" dir=in action=allow protocol=UDP localport=5353 program="$INSTDIR\resources\cli-bin\nvpair-node-scanner.exe" enable=yes profile=any remoteip=localsubnet'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router mDNS Workload Manager (UDP 5353)" dir=in action=allow protocol=UDP localport=5353 program="$INSTDIR\resources\cli-bin\nvpair-workload-manager.exe" enable=yes profile=any remoteip=localsubnet'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router mDNS Errors (UDP 5353)" dir=in action=allow protocol=UDP localport=5353 program="$INSTDIR\resources\cli-bin\nvpair-errors.exe" enable=yes profile=any remoteip=localsubnet'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Workload Manager (TCP 14320)" dir=in action=allow protocol=TCP localport=14320 program="$INSTDIR\resources\cli-bin\nvpair-workload-manager.exe" enable=yes profile=any remoteip=localsubnet'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Cluster Manager (TCP 14321)" dir=in action=allow protocol=TCP localport=14321 program="$INSTDIR\resources\cli-bin\nvpair-cluster-manager.exe" enable=yes profile=any remoteip=localsubnet'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Engine Manager (TCP 14322)" dir=in action=allow protocol=TCP localport=14322 program="$INSTDIR\resources\cli-bin\nvpair-engine-manager.exe" enable=yes profile=any remoteip=localsubnet'
-!macroend
-
-; Tailscale rules. Tailscale assigns every node an address in 100.64.0.0/10 and
-; is the supported way to pair a node on another network. These rules are
-; deliberately narrower than the LAN set in three ways:
-;
-;   - `localip=100.64.0.0/10`: the packet must be addressed to this host's own
-;     tailnet address. That address exists only on the Tailscale adapter, so
-;     the packet can only have arrived through Tailscale's WireGuard tunnel,
-;     from a device Tailscale authenticated. A packet on the physical NIC with
-;     a forged 100.64/10 source is addressed to the LAN address and does not
-;     match. `remoteip` narrows it further to tailnet peers.
-;   - Only the services a paired peer talks to: node-info (inventory and
-;     telemetry), the inference proxies, workload propagation, error sync,
-;     cluster membership, and engine control. No discovery: a tailnet carries
-;     no multicast, so the scanner and the mDNS port have nothing to receive
-;     from it and get no rule.
-;   - Per program, like the LAN set, so only PAIR's own binaries answer.
-;
-; Beyond the firewall, the services themselves hold the line: the proxies
-; accept plaintext only from loopback and require the cluster's mutual TLS
-; from any other address, and node-info serves read-only inventory. See
-; SECURITY.md. Tailscale ACLs can narrow this again to the port list in
-; docs/getting-started.mdx.
-!macro pairAddTailnetFirewallRules
-  DetailPrint "Adding Personal AI Router Tailscale firewall rules..."
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Ollama Proxy (Tailscale)" dir=in action=allow program="$INSTDIR\resources\cli-bin\ollama-proxy.exe" enable=yes profile=any localip=100.64.0.0/10 remoteip=100.64.0.0/10'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router LM Studio Proxy (Tailscale)" dir=in action=allow program="$INSTDIR\resources\cli-bin\lmstudio-proxy.exe" enable=yes profile=any localip=100.64.0.0/10 remoteip=100.64.0.0/10'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Node Info (Tailscale)" dir=in action=allow program="$INSTDIR\resources\cli-bin\nvpair-node-info.exe" enable=yes profile=any localip=100.64.0.0/10 remoteip=100.64.0.0/10'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Workload Manager (Tailscale)" dir=in action=allow program="$INSTDIR\resources\cli-bin\nvpair-workload-manager.exe" enable=yes profile=any localip=100.64.0.0/10 remoteip=100.64.0.0/10'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Errors (Tailscale)" dir=in action=allow program="$INSTDIR\resources\cli-bin\nvpair-errors.exe" enable=yes profile=any localip=100.64.0.0/10 remoteip=100.64.0.0/10'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Cluster Manager (Tailscale)" dir=in action=allow program="$INSTDIR\resources\cli-bin\nvpair-cluster-manager.exe" enable=yes profile=any localip=100.64.0.0/10 remoteip=100.64.0.0/10'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Engine Manager (Tailscale)" dir=in action=allow program="$INSTDIR\resources\cli-bin\nvpair-engine-manager.exe" enable=yes profile=any localip=100.64.0.0/10 remoteip=100.64.0.0/10'
-!macroend
-
-!macro pairRemoveTailnetFirewallRules
-  DetailPrint "Removing Personal AI Router Tailscale firewall rules..."
-  nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="Personal AI Router Ollama Proxy (Tailscale)"'
-  nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="Personal AI Router LM Studio Proxy (Tailscale)"'
-  nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="Personal AI Router Node Info (Tailscale)"'
-  nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="Personal AI Router Workload Manager (Tailscale)"'
-  nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="Personal AI Router Errors (Tailscale)"'
-  nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="Personal AI Router Cluster Manager (Tailscale)"'
-  nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="Personal AI Router Engine Manager (Tailscale)"'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Ollama Proxy" dir=in action=allow program="$INSTDIR\resources\cli-bin\ollama-proxy.exe" enable=yes profile=any remoteip=localsubnet,100.64.0.0/10'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router LM Studio Proxy" dir=in action=allow program="$INSTDIR\resources\cli-bin\lmstudio-proxy.exe" enable=yes profile=any remoteip=localsubnet,100.64.0.0/10'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Node Info" dir=in action=allow program="$INSTDIR\resources\cli-bin\nvpair-node-info.exe" enable=yes profile=any remoteip=localsubnet,100.64.0.0/10'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Node Scanner" dir=in action=allow program="$INSTDIR\resources\cli-bin\nvpair-node-scanner.exe" enable=yes profile=any remoteip=localsubnet,100.64.0.0/10'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Workload Manager" dir=in action=allow program="$INSTDIR\resources\cli-bin\nvpair-workload-manager.exe" enable=yes profile=any remoteip=localsubnet,100.64.0.0/10'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Errors" dir=in action=allow program="$INSTDIR\resources\cli-bin\nvpair-errors.exe" enable=yes profile=any remoteip=localsubnet,100.64.0.0/10'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Cluster Manager" dir=in action=allow program="$INSTDIR\resources\cli-bin\nvpair-cluster-manager.exe" enable=yes profile=any remoteip=localsubnet,100.64.0.0/10'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Engine Manager" dir=in action=allow program="$INSTDIR\resources\cli-bin\nvpair-engine-manager.exe" enable=yes profile=any remoteip=localsubnet,100.64.0.0/10'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router mDNS (UDP 5353)" dir=in action=allow protocol=UDP localport=5353 program="$INSTDIR\resources\cli-bin\ollama-proxy.exe" enable=yes profile=any remoteip=localsubnet,100.64.0.0/10'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router mDNS LM Studio Proxy (UDP 5353)" dir=in action=allow protocol=UDP localport=5353 program="$INSTDIR\resources\cli-bin\lmstudio-proxy.exe" enable=yes profile=any remoteip=localsubnet,100.64.0.0/10'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router mDNS Node Info (UDP 5353)" dir=in action=allow protocol=UDP localport=5353 program="$INSTDIR\resources\cli-bin\nvpair-node-info.exe" enable=yes profile=any remoteip=localsubnet,100.64.0.0/10'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router mDNS Node Scanner (UDP 5353)" dir=in action=allow protocol=UDP localport=5353 program="$INSTDIR\resources\cli-bin\nvpair-node-scanner.exe" enable=yes profile=any remoteip=localsubnet,100.64.0.0/10'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router mDNS Workload Manager (UDP 5353)" dir=in action=allow protocol=UDP localport=5353 program="$INSTDIR\resources\cli-bin\nvpair-workload-manager.exe" enable=yes profile=any remoteip=localsubnet,100.64.0.0/10'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router mDNS Errors (UDP 5353)" dir=in action=allow protocol=UDP localport=5353 program="$INSTDIR\resources\cli-bin\nvpair-errors.exe" enable=yes profile=any remoteip=localsubnet,100.64.0.0/10'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Workload Manager (TCP 14320)" dir=in action=allow protocol=TCP localport=14320 program="$INSTDIR\resources\cli-bin\nvpair-workload-manager.exe" enable=yes profile=any remoteip=localsubnet,100.64.0.0/10'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Cluster Manager (TCP 14321)" dir=in action=allow protocol=TCP localport=14321 program="$INSTDIR\resources\cli-bin\nvpair-cluster-manager.exe" enable=yes profile=any remoteip=localsubnet,100.64.0.0/10'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Personal AI Router Engine Manager (TCP 14322)" dir=in action=allow protocol=TCP localport=14322 program="$INSTDIR\resources\cli-bin\nvpair-engine-manager.exe" enable=yes profile=any remoteip=localsubnet,100.64.0.0/10'
 !macroend
 
 !macro pairRemoveFirewallRules
@@ -314,7 +273,6 @@
 !macro customInstall
   !insertmacro pairAssertPayloadInstalled
   !insertmacro pairAddFirewallRules
-  !insertmacro pairAddTailnetFirewallRules
 !macroend
 
 ; Detect a genuine silent run on the ORIGINAL command line. A one-click
@@ -340,7 +298,6 @@
 !macro customUnInstall
   !insertmacro pairCloseRunningProcesses
   !insertmacro pairRemoveFirewallRules
-  !insertmacro pairRemoveTailnetFirewallRules
 
   ; Skip all data handling during an auto-update reinstall.
   ${ifNot} ${isUpdated}
